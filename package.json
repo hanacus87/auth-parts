@@ -1,0 +1,18 @@
+{
+  "name": "oidc-scratch",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "dev:auth": "pnpm --filter auth-server dev",
+    "dev:app": "pnpm --filter app-server dev",
+    "dev:app-sub": "pnpm --filter app-server-sub dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:frontend-sub": "pnpm --filter frontend-sub dev",
+    "db:generate": "pnpm --filter auth-server db:generate",
+    "db:push": "pnpm --filter auth-server db:push",
+    "db:seed": "pnpm --filter auth-server db:seed"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.1"
+  }
+}

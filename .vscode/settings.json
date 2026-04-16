@@ -1,0 +1,28 @@
+{
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/drizzle": true,
+    "**/keys": true,
+    "pnpm-lock.yaml": true
+  },
+  "cSpell.words": [
+    "AQAB",
+    "PKCE",
+    "SPKI",
+    "bcrypt",
+    "drizzle",
+    "healthcheck",
+    "hono",
+    "isready",
+    "jose",
+    "jwks",
+    "noreply",
+    "oidc",
+    "pkce",
+    "sess",
+    "ulid",
+    "userinfo",
+    "upsert"
+  ]
+}

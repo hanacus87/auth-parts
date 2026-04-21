@@ -4,9 +4,9 @@
     {
       "type": "bun",
       "request": "launch",
-      "name": "Auth Server",
-      "program": "${workspaceFolder}/packages/auth-server/src/index.ts",
-      "cwd": "${workspaceFolder}/packages/auth-server",
+      "name": "AuthContainer",
+      "program": "${workspaceFolder}/packages/auth-container/src/index.ts",
+      "cwd": "${workspaceFolder}/packages/auth-container",
       "watchMode": true,
       "stopOnEntry": false
     },
@@ -53,7 +53,7 @@
     {
       "name": "All Servers",
       "configurations": [
-        "Auth Server",
+        "AuthContainer",
         "App Server",
         "App Server Sub",
         "Frontend (Vite)",

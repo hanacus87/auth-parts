@@ -1,20 +1,4 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: oidc
-      POSTGRES_PASSWORD: oidc_secret
-      POSTGRES_DB: oidc_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U oidc"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:7-alpine
     ports:
@@ -40,6 +24,5 @@ services:
       retries: 5
 
 volumes:
-  postgres_data:
   redis_data:
   redis_sub_data:

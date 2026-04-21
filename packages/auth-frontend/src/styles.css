@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/* デザイントークン */
+@theme {
+  --font-sans:
+    "Inter", "Inter Variable", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-zinc-950 text-zinc-100 font-sans antialiased;
+  font-feature-settings: "cv11", "ss01", "ss03";
+  letter-spacing: -0.01em;
+  /* 上端から中心に向かう subtle な indigo グロウ */
+  background-image:
+    radial-gradient(
+      ellipse 80% 60% at 50% -10%,
+      color-mix(in srgb, oklch(0.55 0.22 265) 18%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 85% 110%,
+      color-mix(in srgb, oklch(0.55 0.22 300) 10%, transparent),
+      transparent 60%
+    );
+  background-attachment: fixed;
+  background-color: #09090b; /* zinc-950 */
+}
+
+/* 選択範囲の色 */
+::selection {
+  background-color: oklch(0.55 0.22 265 / 0.35);
+  color: white;
+}
+
+/* スクロールバー (WebKit) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-zinc-800 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-zinc-700;
+}
+
+/* フォーカスリングのグローバル強化 (keyboard ナビゲーション視認性) */
+*:focus-visible {
+  outline: 2px solid oklch(0.65 0.18 265);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* <option> はブラウザ/OS デフォルトのコントラストになりがちで、
+ * ダーク背景の select と組み合わせると文字が読みづらくなる。
+ * dropdown 展開時の背景・文字色を明示して可読性を確保する。 */
+select option {
+  background-color: #18181b; /* zinc-900 */
+  color: #f4f4f5; /* zinc-100 */
+}
+select option:checked,
+select option:hover {
+  background-color: #27272a; /* zinc-800 */
+  color: #ffffff;
+}

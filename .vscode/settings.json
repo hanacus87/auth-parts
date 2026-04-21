@@ -2,8 +2,7 @@
   "files.exclude": {
     "**/node_modules": true,
     "**/dist": true,
-    "**/drizzle": true,
-    "**/keys": true,
+    "**/drizzle": false,
     "pnpm-lock.yaml": true
   },
   "cSpell.words": [

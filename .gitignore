@@ -1,5 +1,9 @@
 node_modules/
 dist/
+dist-assets/
 .env
+.dev.vars
 keys/
-drizzle/
+.wrangler/
+*.tsbuildinfo
+reports/

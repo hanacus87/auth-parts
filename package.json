@@ -3,16 +3,30 @@
   "private": true,
   "version": "0.0.1",
   "scripts": {
-    "dev:auth": "pnpm --filter auth-server dev",
+    "dev:auth": "pnpm --filter auth-container dev",
+    "dev:auth-frontend": "pnpm --filter auth-frontend build --watch",
     "dev:app": "pnpm --filter app-server dev",
     "dev:app-sub": "pnpm --filter app-server-sub dev",
     "dev:frontend": "pnpm --filter frontend dev",
     "dev:frontend-sub": "pnpm --filter frontend-sub dev",
-    "db:generate": "pnpm --filter auth-server db:generate",
-    "db:push": "pnpm --filter auth-server db:push",
-    "db:seed": "pnpm --filter auth-server db:seed"
+    "build:auth-frontend": "pnpm --filter auth-frontend build",
+    "build:auth-container": "pnpm run build:auth-frontend && pnpm --filter auth-container build",
+    "deploy:auth-container": "pnpm run build:auth-frontend && pnpm --filter auth-container run deploy:cf",
+    "db:generate": "pnpm --filter auth-container db:generate",
+    "db:migrate:local": "pnpm --filter auth-container db:migrate:local",
+    "db:migrate:remote": "pnpm --filter auth-container db:migrate:remote",
+    "db:seed:local": "pnpm --filter auth-container db:seed:local",
+    "db:seed:remote": "pnpm --filter auth-container db:seed:remote",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx,json}\" \"packages/*/*.{json,md}\" \"*.{json,md}\"",
+    "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx,json}\" \"packages/*/*.{json,md}\" \"*.{json,md}\""
   },
   "devDependencies": {
     "prettier": "^3.8.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd"
+    ]
   }
 }

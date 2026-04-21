@@ -1,0 +1,25 @@
+name = "auth-container"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+
+workers_dev = false
+
+[dev]
+port = 4000
+
+# D1 バインディング
+# 初回のみ `wrangler d1 create auth-container-prod` を実行し、出力される database_id で上書きすること
+[[d1_databases]]
+binding = "DB"
+database_name = "auth-container-prod"
+database_id = "d9c13080-fc2d-475b-b9c8-d33d15e5da5b"
+
+# Static Assets (Vite で auth-frontend を build した成果物)
+# SPA ルーティングは Hono の app.get("*") で index.html に fallback させる
+[assets]
+directory = "./dist-assets"
+binding = "ASSETS"
+not_found_handling = "none"
+
+# Env vars (local: .dev.vars / remote: CF Dashboard):
+#   ISSUER, ACCESS_TOKEN_TTL, ID_TOKEN_TTL, REFRESH_TOKEN_TTL, ENVIRONMENT, FROM_EMAIL, SESSION_SECRET, RESEND_API_KEY

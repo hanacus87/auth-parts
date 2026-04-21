@@ -11,21 +11,27 @@ const PENDING_AUTH_TTL = 60 * 10; // 10 分
 
 export interface SessionData {
   userId: string;
+  // OIDC Core §5.1.4: ID Token の sid クレーム (OP 側の op_session.id)
+  opSessionId: string | null;
   accessToken: string;
   refreshToken: string | null;
   idToken: string;
-  accessTokenExpiresAt: number; // Unix timestamp (秒)
+  accessTokenExpiresAt: number;
   createdAt: number;
 }
 
-// Redis キー: "bff:session:{sessionId}"
 function sessionKey(sessionId: string): string {
   return `bff:session:${sessionId}`;
 }
 
-// 逆引きインデックス: userId → sessionIds (Back-Channel Logout 用)
+// 逆引きインデックス: userId → sessionIds
 function userSessionsKey(userId: string): string {
   return `bff:user-sessions:${userId}`;
+}
+
+// OIDC BCL §2.4: sid を単位としたログアウト伝播用の逆引き index
+function sidToSessionKey(sid: string): string {
+  return `bff:sid-to-session:${sid}`;
 }
 
 export async function createSession(data: SessionData): Promise<string> {
@@ -33,6 +39,9 @@ export async function createSession(data: SessionData): Promise<string> {
   await redis.set(sessionKey(id), JSON.stringify(data), "EX", SESSION_TTL);
   await redis.sadd(userSessionsKey(data.userId), id);
   await redis.expire(userSessionsKey(data.userId), SESSION_TTL);
+  if (data.opSessionId) {
+    await redis.set(sidToSessionKey(data.opSessionId), id, "EX", SESSION_TTL);
+  }
   return id;
 }
 
@@ -50,15 +59,32 @@ export async function destroySession(sessionId: string): Promise<void> {
   const session = await getSession(sessionId);
   if (session) {
     await redis.srem(userSessionsKey(session.userId), sessionId);
+    if (session.opSessionId) {
+      await redis.del(sidToSessionKey(session.opSessionId));
+    }
   }
   await redis.del(sessionKey(sessionId));
 }
 
-/** 指定ユーザーの全セッションを破棄する (Back-Channel Logout 用) */
+/** OIDC BCL §2.4: logout_token.sid で指定された単一セッションを破棄する */
+export async function destroySessionBySid(sid: string): Promise<void> {
+  const sessionId = await redis.get(sidToSessionKey(sid));
+  if (!sessionId) return;
+  await destroySession(sessionId);
+}
+
+/** logout_token.sid が無い場合のフォールバック: userId 配下の全セッションを破棄 */
 export async function destroyUserSessions(userId: string): Promise<void> {
   const key = userSessionsKey(userId);
   const sessionIds = await redis.smembers(key);
   if (sessionIds.length === 0) return;
+  // sid index も掃除する
+  for (const id of sessionIds) {
+    const session = await getSession(id);
+    if (session?.opSessionId) {
+      await redis.del(sidToSessionKey(session.opSessionId));
+    }
+  }
   const sessionKeys = sessionIds.map((id) => sessionKey(id));
   await redis.del(...sessionKeys, key);
 }

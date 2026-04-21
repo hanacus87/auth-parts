@@ -7,7 +7,7 @@ export function startLogin(): void {
 }
 
 // ── Logout ─────────────────────────────────────────────────────
-// BFF のセッションを破棄し、auth-server のログアウトにリダイレクト
+// BFF のセッションを破棄し、AuthContainer のログアウトにリダイレクト
 export async function logout(): Promise<void> {
   try {
     const res = await fetch(`${APP_SERVER}/auth/logout`, {

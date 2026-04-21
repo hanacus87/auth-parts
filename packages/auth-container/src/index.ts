@@ -57,8 +57,9 @@ app.route("/", userinfoRouter);
 
 app.route("/api", apiRouter);
 
-app.get("*", (c) => {
-  return c.env.ASSETS.fetch(new Request(new URL("/index.html", c.req.url)));
+app.get("*", async (c) => {
+  const res = await c.env.ASSETS.fetch(new Request(new URL("/index.html", c.req.url)));
+  return new Response(res.body, res);
 });
 
 export default app;

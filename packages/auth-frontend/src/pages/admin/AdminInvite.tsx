@@ -60,12 +60,9 @@ export function AdminInvite() {
         <div className="mt-4">
           <Alert kind="success">
             <strong>{sent.email}</strong>{" "}
-            宛に招待メールを送信しました。受信者がリンクから初期パスワードを設定するとログイン可能になります。
+            宛に招待メールを送信しました。受信者がリンクから初期パスワードを設定するとログインできます。
           </Alert>
         </div>
-        <p className="mt-4 text-xs text-zinc-400">
-          リンクの有効期限は 15 分です。期限切れの場合は `/admin/forgot-password` から再送できます。
-        </p>
         <div className="mt-6 flex gap-2">
           <Button onClick={() => navigate("/admin/admins")}>一覧に戻る</Button>
         </div>
@@ -84,9 +81,7 @@ export function AdminInvite() {
       </Link>
 
       <h1 className="mt-4 text-2xl font-semibold text-zinc-100">管理者を招待</h1>
-      <p className="mt-1 text-sm text-zinc-400">
-        メールアドレス宛に初期パスワード設定リンクが送信されます。
-      </p>
+      <p className="mt-1 text-sm text-zinc-400">パスワード設定リンクをメールで送信します。</p>
 
       {serverError && (
         <div className="mt-4">
@@ -101,22 +96,18 @@ export function AdminInvite() {
         <Field label="表示名" error={errors.name?.message}>
           <Input {...register("name")} type="text" autoComplete="off" />
         </Field>
-        <Field
-          label="Role"
-          error={errors.role?.message}
-          hint="(super = 全権限 / admin = 自分が作成した clients のみ)"
-        >
+        <Field label="権限" error={errors.role?.message}>
           <Select {...register("role")}>
             {ADMIN_ROLES.map((r) => (
               <option key={r} value={r}>
-                {r}
+                {r === "super" ? "全体管理者 (全権限)" : "管理者 (自分が作成したクライアントのみ)"}
               </option>
             ))}
           </Select>
         </Field>
         <div className="mt-6 flex gap-2">
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "送信中..." : "招待メールを送信"}
+            {isSubmitting ? "送信中..." : "招待を送信"}
           </Button>
           <Button type="button" variant="secondary" onClick={() => navigate("/admin/admins")}>
             キャンセル

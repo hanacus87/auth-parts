@@ -14,22 +14,22 @@ interface Card {
 const CARDS: readonly Card[] = [
   {
     to: "/admin/users",
-    title: "ユーザー管理",
-    description: "一般ユーザーの閲覧と削除",
+    title: "ユーザー",
+    description: "ユーザーの一覧と削除",
     icon: Users,
     roles: ["super"],
   },
   {
     to: "/admin/admins",
-    title: "管理者管理",
-    description: "管理者の招待・role 変更・削除",
+    title: "管理者",
+    description: "管理者の招待と権限変更",
     icon: UserCog,
     roles: ["super"],
   },
   {
     to: "/admin/clients",
-    title: "クライアント管理",
-    description: "OIDC クライアントの CRUD。client_id / secret は自動生成",
+    title: "クライアント",
+    description: "連携アプリの登録と編集",
     icon: KeyRound,
     roles: ["super", "admin"],
   },
@@ -47,12 +47,9 @@ export function AdminDashboard() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Dashboard</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">ダッシュボード</h1>
           <p className="mt-1 text-sm text-zinc-400">
-            ようこそ、<span className="text-zinc-200">{admin.name}</span> さん{" "}
-            <span className="ml-2 inline-flex items-center rounded-md bg-zinc-800/60 px-1.5 py-0.5 text-[10px] font-mono text-zinc-300 ring-1 ring-inset ring-zinc-700/60">
-              {admin.role}
-            </span>
+            ようこそ、<span className="text-zinc-200">{admin.name}</span> さん
           </p>
         </div>
       </div>

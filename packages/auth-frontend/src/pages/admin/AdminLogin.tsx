@@ -35,7 +35,7 @@ export function AdminLoginPage() {
   });
 
   return (
-    <AuthLayout title="管理者ログイン" subtitle="AuthContainer の管理画面にアクセス">
+    <AuthLayout title="管理者ログイン">
       {serverError && (
         <div className="mb-4">
           <Alert kind="error">{serverError}</Alert>
@@ -56,7 +56,7 @@ export function AdminLoginPage() {
       </form>
       <p className="mt-4 text-center text-sm">
         <Link to="/admin/forgot-password" className="text-zinc-500 hover:text-zinc-300">
-          パスワードを忘れた方はこちら
+          パスワードを忘れた方
         </Link>
       </p>
     </AuthLayout>

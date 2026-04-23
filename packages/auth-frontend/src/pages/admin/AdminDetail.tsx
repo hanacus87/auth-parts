@@ -68,7 +68,9 @@ export function AdminDetail() {
         setTarget(res.admin);
         reset({ name: res.admin.name, role: res.admin.role });
       })
-      .catch((err) => setServerError(err instanceof ApiError ? err.message : "読み込みに失敗"))
+      .catch((err) =>
+        setServerError(err instanceof ApiError ? err.message : "読み込みに失敗しました"),
+      )
       .finally(() => setLoading(false));
   }, [id, reset]);
 
@@ -98,7 +100,7 @@ export function AdminDetail() {
       });
       navigate("/admin/admins");
     } catch (err) {
-      setServerError(err instanceof ApiError ? err.message : "削除に失敗");
+      setServerError(err instanceof ApiError ? err.message : "削除に失敗しました");
       setDeleting(false);
       setShowDeleteConfirm(false);
     }
@@ -139,8 +141,8 @@ export function AdminDetail() {
 
       <h1 className="mt-4 text-2xl font-semibold tracking-tight text-zinc-50">管理者詳細</h1>
       <p className="mt-1 text-sm text-zinc-400">
-        name / role の編集のみ可能。email / password は変更不可。
-        {isSelf && <span className="ml-1 text-indigo-400">(自分自身を編集中)</span>}
+        表示名と権限のみ編集できます。
+        {isSelf && <span className="ml-1 text-indigo-400">(自分を編集中)</span>}
       </p>
 
       {serverError && (
@@ -161,7 +163,7 @@ export function AdminDetail() {
             <VerifiedBadge verified={target.emailVerified} />
           </div>
         </InfoRow>
-        <InfoRow label="id">
+        <InfoRow label="ID">
           <code className="font-mono text-xs text-zinc-400">{target.id}</code>
         </InfoRow>
         <InfoRow label="作成日時">
@@ -181,17 +183,16 @@ export function AdminDetail() {
           <Input {...register("name")} type="text" autoComplete="off" />
         </Field>
         <Field
-          label="Role"
-          hint={isSelf ? "(自分自身の role は変更できません)" : undefined}
+          label="権限"
+          hint={isSelf ? "(自分の権限は変更できません)" : undefined}
           error={
-            errors.role?.message ||
-            (roleChangedForSelf ? "自分自身の role は変更できません" : undefined)
+            errors.role?.message || (roleChangedForSelf ? "自分の権限は変更できません" : undefined)
           }
         >
           <Select {...register("role")} disabled={isSelf}>
             {ADMIN_ROLES.map((r) => (
               <option key={r} value={r}>
-                {r}
+                {r === "super" ? "全体管理者" : "管理者"}
               </option>
             ))}
           </Select>
@@ -206,10 +207,7 @@ export function AdminDetail() {
       <div className="mt-10 rounded-lg border border-red-900/50 bg-red-950/10 p-4">
         <h2 className="text-sm font-semibold text-red-200">管理者を削除</h2>
         <p className="mt-1 text-xs text-zinc-400">
-          管理者アカウントを削除します。該当 admin の adminSessions / adminPasswordResetTokens
-          も同時に削除され、進行中のセッションは即時無効化されます。
-          この管理者が所有するクライアント (created_by_admin_id) の扱いは DB 上 NULL に変わり、
-          SuperAdmin のみが管理できる状態になります。
+          このアカウントと関連データを削除します。この管理者が作成したクライアントは全体管理者のみが管理できる状態になります。
         </p>
 
         <div className="mt-3">
@@ -243,9 +241,7 @@ export function AdminDetail() {
               message={
                 <>
                   <code className="font-mono text-red-200">{target.email}</code>{" "}
-                  を削除します。関連する adminSessions /
-                  招待トークンも同時に削除され、この管理者が所有していたクライアントは SuperAdmin
-                  専有扱いになります。
+                  を削除します。関連データも同時に削除されます。この管理者が作成したクライアントは全体管理者のみが管理できる状態になります。
                 </>
               }
               confirmLabel="削除する"

@@ -36,7 +36,7 @@ export function UsersList() {
       const res = await api.get<{ users: User[] }>("/api/admin/users");
       setUsers(res.users);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "読み込みに失敗");
+      setError(err instanceof Error ? err.message : "読み込みに失敗しました");
     }
   }
 
@@ -62,7 +62,7 @@ export function UsersList() {
         await reload();
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "削除に失敗");
+      setError(err instanceof ApiError ? err.message : "削除に失敗しました");
     } finally {
       setPendingId(null);
     }
@@ -71,8 +71,8 @@ export function UsersList() {
   return (
     <div>
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Users</h1>
-        <p className="mt-1 text-sm text-zinc-400">一般ユーザーの閲覧と削除</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">ユーザー</h1>
+        <p className="mt-1 text-sm text-zinc-400">ユーザーの一覧</p>
       </div>
 
       {error && (
@@ -87,7 +87,7 @@ export function UsersList() {
             message={
               <>
                 <code className="font-mono text-red-200">{cascadeTarget.email}</code>{" "}
-                を削除するには関連データも削除する必要があります:
+                を削除するには関連データも削除する必要があります
               </>
             }
             dependencies={cascadeTarget.deps}
@@ -103,12 +103,12 @@ export function UsersList() {
         <table className="min-w-full divide-y divide-zinc-800/80 text-sm">
           <thead className="bg-zinc-900/60">
             <tr className="text-left">
-              <Th>Email</Th>
+              <Th>メールアドレス</Th>
               <Th>確認</Th>
               <Th>表示名</Th>
               <Th>ID</Th>
               <Th>作成日時</Th>
-              <Th className="text-right">Actions</Th>
+              <Th className="text-right">操作</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/60">
@@ -117,14 +117,14 @@ export function UsersList() {
                 <td className="px-4 py-10 text-center text-sm text-zinc-500" colSpan={6}>
                   <span className="inline-flex items-center gap-2">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-400" />
-                    Loading...
+                    読み込み中...
                   </span>
                 </td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
                 <td className="px-4 py-10 text-center text-sm text-zinc-500" colSpan={6}>
-                  ユーザーがいません
+                  ユーザーはまだいません
                 </td>
               </tr>
             ) : (

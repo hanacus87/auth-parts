@@ -143,8 +143,7 @@ apiLogoutRouter.post("/logout", async (c) => {
         const url = new URL(params.postLogoutRedirectUri);
         if (params.state) url.searchParams.set("state", params.state);
         return c.json({ redirectUrl: url.toString() });
-      } catch {
-      }
+      } catch {}
     }
   }
 

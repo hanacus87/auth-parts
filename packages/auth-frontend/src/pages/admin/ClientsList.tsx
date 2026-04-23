@@ -34,7 +34,7 @@ export function ClientsList() {
       const res = await api.get<{ clients: Client[] }>("/api/admin/clients");
       setClients(res.clients);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "読み込みに失敗");
+      setError(err instanceof Error ? err.message : "読み込みに失敗しました");
     }
   }
 
@@ -57,7 +57,7 @@ export function ClientsList() {
         await reload();
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "削除に失敗");
+      setError(err instanceof ApiError ? err.message : "削除に失敗しました");
     } finally {
       setPendingId(null);
     }
@@ -67,11 +67,11 @@ export function ClientsList() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Clients</h1>
-          <p className="mt-1 text-sm text-zinc-400">OIDC クライアントの管理</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">クライアント</h1>
+          <p className="mt-1 text-sm text-zinc-400">連携アプリの一覧</p>
         </div>
         <Link to="/admin/clients/new">
-          <Button leftIcon={<Plus className="h-3.5 w-3.5" strokeWidth={2.5} />}>New client</Button>
+          <Button leftIcon={<Plus className="h-3.5 w-3.5" strokeWidth={2.5} />}>新規作成</Button>
         </Link>
       </div>
 
@@ -87,7 +87,7 @@ export function ClientsList() {
             message={
               <>
                 <code className="font-mono text-red-200">{cascadeTarget.name}</code>{" "}
-                を削除するには関連データも削除する必要があります:
+                を削除するには関連データも削除する必要があります
               </>
             }
             dependencies={cascadeTarget.deps}
@@ -103,11 +103,11 @@ export function ClientsList() {
         <table className="min-w-full divide-y divide-zinc-800/80 text-sm">
           <thead className="bg-zinc-900/60">
             <tr className="text-left">
-              <Th>client_id</Th>
+              <Th>クライアント ID</Th>
               <Th>名前</Th>
-              <Th>auth_method</Th>
-              <Th>redirect_uris</Th>
-              <Th className="text-right">Actions</Th>
+              <Th>認証方式</Th>
+              <Th>コールバック URL</Th>
+              <Th className="text-right">操作</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/60">
@@ -116,14 +116,14 @@ export function ClientsList() {
                 <td className="px-4 py-10 text-center text-sm text-zinc-500" colSpan={5}>
                   <span className="inline-flex items-center gap-2">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-400" />
-                    Loading...
+                    読み込み中...
                   </span>
                 </td>
               </tr>
             ) : clients.length === 0 ? (
               <tr>
                 <td className="px-4 py-10 text-center text-sm text-zinc-500" colSpan={5}>
-                  クライアントがいません
+                  クライアントはまだありません
                 </td>
               </tr>
             ) : (

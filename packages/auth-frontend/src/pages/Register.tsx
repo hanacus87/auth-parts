@@ -78,17 +78,17 @@ export function RegisterPage() {
         <div className="mb-4">
           <Alert kind="success">
             <strong>{sent.email}</strong>{" "}
-            宛に確認用のリンクを送信しました。メール内のリンクをクリックしてアカウントを有効化してください。
+            宛にリンクを送信しました。メールのリンクをクリックしてください。
           </Alert>
         </div>
         <p className="mb-4 text-sm text-zinc-400">
-          リンクの有効期限は 60 分です。届かない場合は迷惑メールフォルダもご確認ください。
+          届かない場合は迷惑メールフォルダもご確認ください。
         </p>
 
         {resendState === "sent" ? (
-          <Alert kind="success">確認メールを再送しました。</Alert>
+          <Alert kind="success">再送しました。</Alert>
         ) : resendState === "rate_limited" ? (
-          <Alert kind="warning">再送は 5 分に 1 回までです。しばらくお待ちください。</Alert>
+          <Alert kind="warning">しばらく経ってからお試しください。</Alert>
         ) : (
           <Button
             type="button"
@@ -111,14 +111,14 @@ export function RegisterPage() {
   }
 
   return (
-    <AuthLayout title="新規登録" subtitle="アカウントを作成">
+    <AuthLayout title="新規登録">
       {serverError && (
         <div className="mb-4">
           <Alert kind="error">{serverError}</Alert>
         </div>
       )}
       <form onSubmit={onSubmit} noValidate>
-        <Field label="メールアドレス" hint="(必須)" error={errors.email?.message}>
+        <Field label="メールアドレス" error={errors.email?.message}>
           <Input {...register("email")} type="email" autoComplete="email" />
         </Field>
         <Field label="パスワード" hint="(8 文字以上)" error={errors.password?.message}>
@@ -127,13 +127,13 @@ export function RegisterPage() {
         <Field label="パスワード (確認)" error={errors.password_confirm?.message}>
           <PasswordInput {...register("password_confirm")} autoComplete="new-password" />
         </Field>
-        <Field label="表示名" hint="(必須)" error={errors.name?.message}>
+        <Field label="表示名" error={errors.name?.message}>
           <Input {...register("name")} type="text" autoComplete="name" />
         </Field>
-        <Field label="名 (任意)" error={errors.given_name?.message}>
+        <Field label="名" hint="(任意)" error={errors.given_name?.message}>
           <Input {...register("given_name")} type="text" autoComplete="given-name" />
         </Field>
-        <Field label="姓 (任意)" error={errors.family_name?.message}>
+        <Field label="姓" hint="(任意)" error={errors.family_name?.message}>
           <Input {...register("family_name")} type="text" autoComplete="family-name" />
         </Field>
         <div className="mt-6">

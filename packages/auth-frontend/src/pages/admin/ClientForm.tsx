@@ -84,7 +84,7 @@ export function ClientForm({ mode }: Props) {
           post_logout_redirect_uris: res.client.postLogoutRedirectUris.map((v) => ({ value: v })),
         });
       })
-      .catch((err) => setServerError(err instanceof Error ? err.message : "読み込みに失敗"))
+      .catch((err) => setServerError(err instanceof Error ? err.message : "読み込みに失敗しました"))
       .finally(() => setLoading(false));
   }, [id, mode, reset]);
 
@@ -155,11 +155,11 @@ export function ClientForm({ mode }: Props) {
   if (rotatedSecret) {
     return (
       <SecretDisplay
-        title="secret を発行しました"
+        title="新しいシークレットを発行しました"
         clientId={id}
         clientSecret={rotatedSecret}
         onContinue={() => navigate("/admin/clients")}
-        rotationReason="古い secret は無効になりました。"
+        rotationReason="古いシークレットは使用できなくなりました。"
       />
     );
   }
@@ -177,12 +177,12 @@ export function ClientForm({ mode }: Props) {
 
       {mode === "edit" ? (
         <p className="mt-4 text-sm text-zinc-400">
-          client_id: <code className="font-mono text-zinc-200">{id}</code>{" "}
+          クライアント ID: <code className="font-mono text-zinc-200">{id}</code>{" "}
           <span className="text-zinc-500">(変更不可)</span>
         </p>
       ) : (
         <p className="mt-4 text-sm text-zinc-400">
-          client_id と client_secret は作成時に自動生成されます。
+          クライアント ID とシークレットは作成時に自動発行されます。
         </p>
       )}
 
@@ -191,11 +191,7 @@ export function ClientForm({ mode }: Props) {
           <Input {...register("name")} autoComplete="off" />
         </Field>
 
-        <Field
-          label="redirect_uris"
-          hint="(1 つ以上、末尾スラッシュも厳密一致)"
-          error={errors.redirect_uris?.message}
-        >
+        <Field label="コールバック URL" hint="(1 つ以上)" error={errors.redirect_uris?.message}>
           <RepeatableInput
             control={control}
             name="redirect_uris"
@@ -204,10 +200,7 @@ export function ClientForm({ mode }: Props) {
           />
         </Field>
 
-        <Field
-          label="token_endpoint_auth_method"
-          error={errors.token_endpoint_auth_method?.message}
-        >
+        <Field label="認証方式" error={errors.token_endpoint_auth_method?.message}>
           <Select {...register("token_endpoint_auth_method")}>
             {TOKEN_ENDPOINT_AUTH_METHODS.map((m) => (
               <option key={m} value={m}>
@@ -217,19 +210,23 @@ export function ClientForm({ mode }: Props) {
           </Select>
         </Field>
 
-        <Field label="allowed_scopes" hint="(固定値)">
+        <Field label="許可するスコープ" hint="(固定)">
           <ReadOnlyChipList values={SUPPORTED_SCOPES} />
         </Field>
 
-        <Field label="allowed_grant_types" hint="(固定値)">
+        <Field label="許可する認可フロー" hint="(固定)">
           <ReadOnlyChipList values={GRANT_TYPES} />
         </Field>
 
-        <Field label="backchannel_logout_uri (任意)" error={errors.backchannel_logout_uri?.message}>
+        <Field
+          label="バックチャネルログアウト URL"
+          hint="(任意)"
+          error={errors.backchannel_logout_uri?.message}
+        >
           <Input {...register("backchannel_logout_uri")} type="url" autoComplete="off" />
         </Field>
 
-        <Field label="post_logout_redirect_uris (任意)">
+        <Field label="ログアウト後の遷移先 URL" hint="(任意)">
           <RepeatableInput
             control={control}
             name="post_logout_redirect_uris"
@@ -249,17 +246,16 @@ export function ClientForm({ mode }: Props) {
 
       {mode === "edit" && (
         <div className="mt-10 rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
-          <h2 className="text-sm font-semibold text-zinc-200">secret のローテーション</h2>
+          <h2 className="text-sm font-semibold text-zinc-200">シークレットの再発行</h2>
           <p className="mt-1 text-xs text-zinc-400">
-            新しい secret を発行して古い secret を無効化します。新値は 1 度だけ表示されます。 public
-            client (auth_method=none) には適用できません。
+            新しいシークレットを発行します。新しい値は一度だけ表示されます。
           </p>
 
           {confirmingRotate ? (
             <div className="mt-3 rounded-md border border-red-900/60 bg-red-950/20 p-3">
               <p className="text-sm text-red-100/90">
-                現在の client_secret を <strong>破棄</strong> して新しい値を発行します。古い secret
-                を使用している RP は直ちに認証失敗になります。
+                現在のシークレットを <strong>破棄</strong>{" "}
+                して新しい値を発行します。古いシークレットを使用している接続アプリは接続できなくなります。
               </p>
               <div className="mt-3 flex gap-2">
                 <Button variant="danger" size="sm" onClick={rotateSecret} disabled={rotating}>
@@ -282,7 +278,7 @@ export function ClientForm({ mode }: Props) {
                 onClick={() => setConfirmingRotate(true)}
                 disabled={rotating}
               >
-                secret を再生成
+                シークレットを再発行
               </Button>
             </div>
           )}
@@ -319,8 +315,7 @@ function CopyableValue({ value, label }: { value: string; label: string }) {
       await navigator.clipboard.writeText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch {
-    }
+    } catch {}
   }
   return (
     <div>
@@ -367,18 +362,16 @@ function SecretDisplay(props: {
       <h1 className="text-2xl font-semibold text-zinc-100">{props.title}</h1>
       {props.rotationReason && <p className="mt-2 text-sm text-zinc-400">{props.rotationReason}</p>}
       <div className="mt-6 space-y-4">
-        <CopyableValue label="client_id" value={props.clientId} />
+        <CopyableValue label="クライアント ID" value={props.clientId} />
         {props.clientSecret ? (
           <>
-            <CopyableValue label="client_secret" value={props.clientSecret} />
+            <CopyableValue label="クライアントシークレット" value={props.clientSecret} />
             <Alert kind="warning">
-              この client_secret は二度と表示されません。いま安全な場所にコピーしてください。
+              このシークレットは二度と表示されません。パスワード管理ツール等に保存してください。
             </Alert>
           </>
         ) : (
-          <p className="text-sm text-zinc-500">
-            public client (auth_method=none) のため client_secret はありません。
-          </p>
+          <p className="text-sm text-zinc-500">このクライアントはシークレット不要です。</p>
         )}
       </div>
       <div className="mt-6 flex gap-2">

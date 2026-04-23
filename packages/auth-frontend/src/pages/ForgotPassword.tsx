@@ -53,16 +53,14 @@ export function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <AuthLayout title="パスワード再設定メールを送信しました" subtitle="受信箱をご確認ください">
+      <AuthLayout title="メールを送信しました" subtitle="受信箱をご確認ください">
         <div className="mb-4">
           <Alert kind="success">
-            <strong>{sent.email}</strong>{" "}
-            宛にパスワード再設定のリンクを送信しました。メール内のリンクをクリックして新しいパスワードを設定してください。
+            <strong>{sent.email}</strong> 宛にリンクを送信しました。
           </Alert>
         </div>
         <p className="mb-4 text-xs text-zinc-400">
-          リンクの有効期限は 15 分です。届かない場合は迷惑メールフォルダもご確認ください。
-          また、該当メールアドレスでアカウントが登録されていない場合はメールは届きません。
+          届かない場合は迷惑メールフォルダもご確認ください。
         </p>
 
         {resendState === "sent" ? (
@@ -78,19 +76,12 @@ export function ForgotPasswordPage() {
             {resendState === "sending" ? "送信中..." : "メールを再送"}
           </Button>
         )}
-
-        <p className="mt-4 text-center text-sm text-zinc-400">
-          メール内のリンクを開いて新しいパスワードを設定してください。
-        </p>
       </AuthLayout>
     );
   }
 
   return (
-    <AuthLayout
-      title="パスワードを忘れた方"
-      subtitle="登録したメールアドレスに再設定リンクを送信します"
-    >
+    <AuthLayout title="パスワード再設定" subtitle="メールアドレスに再設定リンクを送ります">
       {serverError && (
         <div className="mb-4">
           <Alert kind="error">{serverError}</Alert>

@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { LogOut, ShieldCheck, Users, KeyRound, LayoutGrid, UserCog } from "lucide-react";
+import { LogOut, Users, KeyRound, LayoutGrid, UserCog } from "lucide-react";
 import { api, ApiError, redirectTo } from "../lib/api";
 import { Button } from "./Button";
+import { AuthContainerMark } from "./AuthContainerMark";
 import type { AdminRole } from "../lib/schemas";
 
 interface AdminInfo {
@@ -33,12 +34,12 @@ export function useAdminSession(): AdminSession {
 
 /** admin の role に応じて表示するサイドナビ項目を組み立てる。SuperAdmin のみ Users / Admins 管理を表示。 */
 function buildNavItems(role: AdminRole) {
-  const items = [{ to: "/admin", label: "Dashboard", icon: LayoutGrid, end: true }];
+  const items = [{ to: "/admin", label: "ダッシュボード", icon: LayoutGrid, end: true }];
   if (role === "super") {
-    items.push({ to: "/admin/users", label: "Users", icon: Users, end: false });
-    items.push({ to: "/admin/admins", label: "Admins", icon: UserCog, end: false });
+    items.push({ to: "/admin/users", label: "ユーザー", icon: Users, end: false });
+    items.push({ to: "/admin/admins", label: "管理者", icon: UserCog, end: false });
   }
-  items.push({ to: "/admin/clients", label: "Clients", icon: KeyRound, end: false });
+  items.push({ to: "/admin/clients", label: "クライアント", icon: KeyRound, end: false });
   return items;
 }
 
@@ -59,7 +60,7 @@ export function AdminLayout() {
         if (err instanceof ApiError && err.status === 401) {
           navigate("/admin/login", { replace: true });
         } else {
-          setError(err.message ?? "failed to load session");
+          setError(err.message ?? "セッションの取得に失敗しました");
         }
       });
   }, [navigate]);
@@ -72,7 +73,7 @@ export function AdminLayout() {
       });
       redirectTo(res.redirectUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "logout failed");
+      setError(err instanceof Error ? err.message : "ログアウトに失敗しました");
     }
   }
 
@@ -80,7 +81,7 @@ export function AdminLayout() {
     return (
       <div className="flex min-h-screen items-center justify-center p-8">
         <div className="rounded-lg border border-red-900/60 bg-red-950/30 px-6 py-4 text-sm text-red-200">
-          <span className="font-medium">Error:</span> {error}
+          {error}
         </div>
       </div>
     );
@@ -93,7 +94,7 @@ export function AdminLayout() {
       <div className="flex min-h-screen items-center justify-center">
         <div className="flex items-center gap-2 text-sm text-zinc-500">
           <div className="h-2 w-2 animate-pulse rounded-full bg-indigo-400" />
-          Loading...
+          読み込み中...
         </div>
       </div>
     );
@@ -105,16 +106,16 @@ export function AdminLayout() {
         <header className="sticky top-0 z-10 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl">
           <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-6">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-indigo-400" strokeWidth={2.2} />
+              <AuthContainerMark className="h-4 w-4 text-indigo-400" strokeWidth={2.2} />
               <span className="text-sm font-semibold tracking-tight text-zinc-100">
                 AuthContainer
               </span>
               {session.admin.role === "super" ? (
-                <span className="ml-1 rounded-full bg-indigo-950/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-300 ring-1 ring-inset ring-indigo-900/60">
-                  Super Admin
+                <span className="ml-1 rounded-full bg-indigo-950/60 px-2 py-0.5 text-[10px] font-medium tracking-wide text-indigo-300 ring-1 ring-inset ring-indigo-900/60">
+                  SuperAdmin
                 </span>
               ) : (
-                <span className="ml-1 rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">
+                <span className="ml-1 rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-medium tracking-wide text-zinc-400">
                   Admin
                 </span>
               )}
@@ -151,7 +152,7 @@ export function AdminLayout() {
                 onClick={handleLogout}
                 leftIcon={<LogOut className="h-3.5 w-3.5" strokeWidth={2} />}
               >
-                Logout
+                ログアウト
               </Button>
             </div>
           </div>

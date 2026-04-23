@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ShieldCheck } from "lucide-react";
+import { AuthContainerMark } from "./AuthContainerMark";
 
 interface Props {
   title: string;
@@ -12,7 +12,7 @@ export function AuthLayout({ title, subtitle, children }: Props) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       <div className="mb-8 flex items-center gap-2 text-zinc-500">
-        <ShieldCheck className="h-4 w-4 text-indigo-400" strokeWidth={2.2} />
+        <AuthContainerMark className="h-4 w-4 text-indigo-400" strokeWidth={2.2} />
         <span className="text-xs font-medium tracking-wide uppercase">AuthContainer</span>
       </div>
 

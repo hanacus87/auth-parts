@@ -40,7 +40,7 @@ export function AdminsList() {
       ];
       setAdmins(sorted);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "読み込みに失敗");
+      setError(err instanceof Error ? err.message : "読み込みに失敗しました");
     }
   }
 
@@ -59,7 +59,7 @@ export function AdminsList() {
       setConfirmTarget(null);
       await reload();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "削除に失敗");
+      setError(err instanceof ApiError ? err.message : "削除に失敗しました");
     } finally {
       setPendingId(null);
     }
@@ -69,15 +69,11 @@ export function AdminsList() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Admins</h1>
-          <p className="mt-1 text-sm text-zinc-400">
-            管理者の閲覧・招待・role 変更・削除 (SuperAdmin のみ)
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">管理者</h1>
+          <p className="mt-1 text-sm text-zinc-400">管理者の一覧と招待</p>
         </div>
         <Link to="/admin/admins/new">
-          <Button leftIcon={<Plus className="h-3.5 w-3.5" strokeWidth={2.5} />}>
-            Invite admin
-          </Button>
+          <Button leftIcon={<Plus className="h-3.5 w-3.5" strokeWidth={2.5} />}>招待</Button>
         </Link>
       </div>
 
@@ -93,9 +89,7 @@ export function AdminsList() {
             message={
               <>
                 <code className="font-mono text-red-200">{confirmTarget.email}</code>{" "}
-                を削除します。関連する adminSessions /
-                招待トークンも同時に削除され、この管理者が所有していたクライアントは SuperAdmin
-                専有扱いになります。
+                を削除します。関連データも同時に削除されます。この管理者が作成したクライアントは全体管理者のみが管理できる状態になります。
               </>
             }
             confirmLabel="削除する"
@@ -110,13 +104,13 @@ export function AdminsList() {
         <table className="min-w-full divide-y divide-zinc-800/80 text-sm">
           <thead className="bg-zinc-900/60">
             <tr className="text-left">
-              <Th>Email</Th>
+              <Th>メールアドレス</Th>
               <Th>確認</Th>
-              <Th>Role</Th>
+              <Th>権限</Th>
               <Th>表示名</Th>
               <Th>ID</Th>
               <Th>作成日時</Th>
-              <Th className="text-right">Actions</Th>
+              <Th className="text-right">操作</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/60">
@@ -125,7 +119,7 @@ export function AdminsList() {
                 <td className="px-4 py-10 text-center text-sm text-zinc-500" colSpan={7}>
                   <span className="inline-flex items-center gap-2">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-400" />
-                    Loading...
+                    読み込み中...
                   </span>
                 </td>
               </tr>
@@ -198,14 +192,14 @@ export function AdminsList() {
 function RoleBadge({ role }: { role: AdminRole }) {
   if (role === "super") {
     return (
-      <span className="inline-flex items-center rounded-md bg-indigo-950/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-300 ring-1 ring-inset ring-indigo-900/60">
-        super
+      <span className="inline-flex items-center rounded-md bg-indigo-950/60 px-2 py-0.5 text-[10px] font-medium tracking-wide text-indigo-300 ring-1 ring-inset ring-indigo-900/60">
+        全体管理者
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center rounded-md bg-zinc-800/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400 ring-1 ring-inset ring-zinc-700/60">
-      admin
+    <span className="inline-flex items-center rounded-md bg-zinc-800/60 px-2 py-0.5 text-[10px] font-medium tracking-wide text-zinc-400 ring-1 ring-inset ring-zinc-700/60">
+      管理者
     </span>
   );
 }

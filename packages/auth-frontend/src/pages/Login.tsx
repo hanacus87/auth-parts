@@ -42,7 +42,6 @@ export function LoginPage() {
   useEffect(() => {
     if (!loginChallenge) {
       setChallengeValid(false);
-      setServerError("login_challenge が指定されていません");
       return;
     }
     api
@@ -51,11 +50,9 @@ export function LoginPage() {
       )
       .then((res) => {
         setChallengeValid(res.valid);
-        if (!res.valid) setServerError("login_challenge が無効または期限切れです");
       })
       .catch(() => {
         setChallengeValid(false);
-        setServerError("login_challenge の検証に失敗しました");
       });
   }, [loginChallenge]);
 
@@ -101,21 +98,13 @@ export function LoginPage() {
 
   if (challengeValid === false) {
     return (
-      <AuthLayout
-        title="ログインを開始できません"
-        subtitle="ご利用のアプリからログインをやり直してください"
-      >
+      <AuthLayout title="ログインを開始できません" subtitle="アプリからやり直してください">
         <div className="mb-4">
-          <Alert kind="info">
-            このログイン画面は、ご利用のアプリケーション経由でのみ開けます。アプリに戻って改めてログインを開始してください。
-          </Alert>
+          <Alert kind="info">アプリに戻って、もう一度ログインを開始してください。</Alert>
         </div>
-        <p className="text-sm text-zinc-400">
-          パスワードを再設定したばかりの方は、ご利用のアプリに戻って新しいパスワードでログインしてください。
-        </p>
         <p className="mt-4 text-center text-sm">
           <Link to="/forgot-password" className="text-zinc-500 hover:text-zinc-300">
-            もう一度パスワードを再設定する
+            パスワードを再設定する
           </Link>
         </p>
       </AuthLayout>
@@ -123,7 +112,7 @@ export function LoginPage() {
   }
 
   return (
-    <AuthLayout title="ログイン" subtitle="メールアドレスとパスワードで認証してください">
+    <AuthLayout title="ログイン">
       {serverError && (
         <div className="mb-4">
           <Alert kind="error">{serverError}</Alert>
@@ -133,12 +122,12 @@ export function LoginPage() {
         <div className="mb-4 space-y-3">
           <Alert kind="warning">
             <strong>{unverified.email}</strong>{" "}
-            のメールアドレスはまだ確認されていません。受信箱の確認リンクをクリックしてください。
+            はまだ確認されていません。メールのリンクをクリックしてください。
           </Alert>
           {resendState === "sent" ? (
             <Alert kind="success">確認メールを再送しました。</Alert>
           ) : resendState === "rate_limited" ? (
-            <Alert kind="warning">再送は 5 分に 1 回までです。しばらくお待ちください。</Alert>
+            <Alert kind="warning">しばらく経ってからお試しください。</Alert>
           ) : (
             <Button
               type="button"
@@ -165,15 +154,14 @@ export function LoginPage() {
           </Button>
         </div>
       </form>
-      <p className="mt-4 text-center text-sm text-zinc-400">
-        アカウント未作成の方は{" "}
+      <p className="mt-4 text-center text-sm">
         <Link to={registerHref} className="text-indigo-400 hover:text-indigo-300">
           新規登録
         </Link>
       </p>
       <p className="mt-2 text-center text-sm">
         <Link to="/forgot-password" className="text-zinc-500 hover:text-zinc-300">
-          パスワードを忘れた方はこちら
+          パスワードを忘れた方
         </Link>
       </p>
     </AuthLayout>

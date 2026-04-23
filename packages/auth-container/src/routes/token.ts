@@ -66,8 +66,7 @@ function extractClientCredentials(c: AppContext, body: Record<string, any>): Cli
           multipleAuth: bodyClientSecret !== undefined,
         };
       }
-    } catch {
-    }
+    } catch {}
   }
 
   return {

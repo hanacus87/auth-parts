@@ -52,15 +52,11 @@ export function ResetPasswordPage() {
 
   if (status === "success") {
     return (
-      <AuthLayout title="パスワードを再設定しました" subtitle="新しいパスワードでログインできます">
+      <AuthLayout title="パスワードを再設定しました">
         <div className="mb-4">
-          <Alert kind="success">
-            パスワードの再設定が完了しました。既存のログインセッションは全て無効化されていますので、新しいパスワードで改めてログインしてください。
-          </Alert>
+          <Alert kind="success">新しいパスワードでログインしてください。</Alert>
         </div>
-        <p className="text-sm text-zinc-400">
-          ご利用のアプリに戻って、新しいパスワードでログインしてください。
-        </p>
+        <p className="text-sm text-zinc-400">アプリに戻ってログインを開始してください。</p>
       </AuthLayout>
     );
   }
@@ -69,8 +65,8 @@ export function ResetPasswordPage() {
     const heading = status === "expired" ? "リンクの有効期限が切れています" : "リンクが無効です";
     const description =
       status === "expired"
-        ? "パスワード再設定リンクの有効期限は 15 分です。再度リクエストしてください。"
-        : "リンクが正しくないか、既に使用されています。再度リクエストしてください。";
+        ? "再度メールを送信してください。"
+        : "リンクが正しくないか、既に使用されています。";
     return (
       <AuthLayout title="パスワード再設定" subtitle={heading}>
         <div className="mb-4">
@@ -78,7 +74,7 @@ export function ResetPasswordPage() {
         </div>
         <p className="text-center text-sm text-zinc-400">
           <Link to="/forgot-password" className="text-indigo-400 hover:text-indigo-300">
-            再設定メールをもう一度送信する
+            もう一度メールを送信する
           </Link>
         </p>
       </AuthLayout>
@@ -86,7 +82,7 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <AuthLayout title="新しいパスワードを設定" subtitle="8 文字以上で入力してください">
+    <AuthLayout title="新しいパスワードを設定">
       {serverError && (
         <div className="mb-4">
           <Alert kind="error">{serverError}</Alert>

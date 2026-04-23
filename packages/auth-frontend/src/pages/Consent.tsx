@@ -24,14 +24,18 @@ export function ConsentPage() {
 
   useEffect(() => {
     if (!consentChallenge) {
-      setError("consent_challenge が指定されていません");
+      setError("セッションが無効です。アプリからやり直してください。");
       return;
     }
     api
       .get<Ctx>(`/api/consent/context?consent_challenge=${encodeURIComponent(consentChallenge)}`)
       .then(setCtx)
       .catch((err) =>
-        setError(err instanceof ApiError ? err.message : "consent_challenge の検証に失敗しました"),
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : "セッションが無効です。アプリからやり直してください。",
+        ),
       );
   }, [consentChallenge]);
 
@@ -62,12 +66,12 @@ export function ConsentPage() {
         <>
           <p className="text-sm text-zinc-300">
             <span className="font-semibold text-zinc-100">{ctx.clientName}</span>{" "}
-            が以下の情報へのアクセスを求めています:
+            が次の情報を求めています
           </p>
           <ul className="mt-3 space-y-1 rounded border border-zinc-800 bg-zinc-950 p-3 text-sm">
             {ctx.scopes.map((s) => (
               <li key={s} className="text-zinc-300">
-                • {labelForScope(s)} <span className="text-xs text-zinc-500">({s})</span>
+                • {labelForScope(s)}
               </li>
             ))}
           </ul>

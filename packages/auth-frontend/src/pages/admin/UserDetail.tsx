@@ -43,7 +43,7 @@ export function UserDetail() {
     api
       .get<{ user: UserDetail }>(`/api/admin/users/${encodeURIComponent(id)}`)
       .then((res) => setUser(res.user))
-      .catch((err) => setError(err instanceof ApiError ? err.message : "読み込みに失敗"))
+      .catch((err) => setError(err instanceof ApiError ? err.message : "読み込みに失敗しました"))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -66,7 +66,7 @@ export function UserDetail() {
         navigate("/admin/users");
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "削除に失敗");
+      setError(err instanceof ApiError ? err.message : "削除に失敗しました");
       setDeleting(false);
     }
   }
@@ -101,7 +101,7 @@ export function UserDetail() {
       </Link>
 
       <h1 className="mt-4 text-2xl font-semibold tracking-tight text-zinc-50">ユーザー詳細</h1>
-      <p className="mt-1 text-sm text-zinc-400">読み取り専用。削除は画面下部から。</p>
+      <p className="mt-1 text-sm text-zinc-400">閲覧と削除ができます。</p>
 
       {error && (
         <div className="mt-4">
@@ -119,13 +119,13 @@ export function UserDetail() {
         <Field label="表示名">
           <span className="text-sm text-zinc-100">{user.name}</span>
         </Field>
-        <Field label="名 (given_name)">
+        <Field label="名">
           <span className="text-sm text-zinc-300">{user.givenName || "—"}</span>
         </Field>
-        <Field label="姓 (family_name)">
+        <Field label="姓">
           <span className="text-sm text-zinc-300">{user.familyName || "—"}</span>
         </Field>
-        <Field label="id">
+        <Field label="ID">
           <code className="font-mono text-xs text-zinc-400">{user.id}</code>
         </Field>
         <Field label="作成日時">
@@ -143,8 +143,7 @@ export function UserDetail() {
       <div className="mt-10 rounded-lg border border-red-900/50 bg-red-950/10 p-4">
         <h2 className="text-sm font-semibold text-red-200">ユーザーを削除</h2>
         <p className="mt-1 text-xs text-zinc-400">
-          このユーザーアカウントを削除します。関連データ (認可コード・トークン・同意履歴等)
-          がある場合は確認画面で明示されます。削除は取り消せません。
+          このアカウントと関連データを削除します。削除は取り消せません。
         </p>
 
         {cascadeTarget ? (
@@ -153,7 +152,7 @@ export function UserDetail() {
               message={
                 <>
                   <code className="font-mono text-red-200">{user.email}</code>{" "}
-                  を削除するには関連データも削除する必要があります:
+                  を削除するには関連データも削除する必要があります
                 </>
               }
               dependencies={cascadeTarget.deps}

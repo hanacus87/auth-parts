@@ -36,7 +36,7 @@ export function LogoutPage() {
     api
       .get<Ctx>(`/api/logout/context${qs.toString() ? `?${qs}` : ""}`)
       .then(setCtx)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "状態取得に失敗しました"));
+      .catch((err) => setError(err instanceof ApiError ? err.message : "読み込みに失敗しました"));
   }, [idTokenHint, postLogoutRedirectUri, state]);
 
   async function doLogout() {
@@ -78,8 +78,8 @@ export function LogoutPage() {
 
   if (completed) {
     return (
-      <AuthLayout title="ログアウト完了">
-        <p className="text-sm text-zinc-300">セッションは正常に終了しました。</p>
+      <AuthLayout title="ログアウトしました">
+        <p className="text-sm text-zinc-300">またのご利用をお待ちしています。</p>
       </AuthLayout>
     );
   }
@@ -87,7 +87,7 @@ export function LogoutPage() {
   if (ctx.alreadyLoggedOut) {
     return (
       <AuthLayout title="ログアウト済み">
-        <p className="text-sm text-zinc-300">有効なセッションが見つかりませんでした。</p>
+        <p className="text-sm text-zinc-300">既にログアウトしています。</p>
         {postLogoutRedirectUri && (
           <div className="mt-4">
             <a
@@ -107,12 +107,10 @@ export function LogoutPage() {
       {ctx.clientName && (
         <p className="text-sm text-zinc-300">
           <span className="font-semibold text-zinc-100">{ctx.clientName}</span>{" "}
-          からログアウトしようとしています。
+          からログアウトします。
         </p>
       )}
-      <p className="mt-2 text-sm text-zinc-400">
-        ログアウトするとこのサーバーおよび関連する RP のセッションが終了します。
-      </p>
+      <p className="mt-2 text-sm text-zinc-400">接続中の他のアプリからもログアウトされます。</p>
       <div className="mt-6 flex gap-3">
         <Button variant="secondary" full onClick={() => history.back()} disabled={submitting}>
           キャンセル

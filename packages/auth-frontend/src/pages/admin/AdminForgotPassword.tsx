@@ -54,14 +54,14 @@ export function AdminForgotPasswordPage() {
 
   if (sent) {
     return (
-      <AuthLayout title="再設定メールを送信しました" subtitle="受信箱をご確認ください">
+      <AuthLayout title="メールを送信しました" subtitle="受信箱をご確認ください">
         <div className="mb-4">
           <Alert kind="success">
-            <strong>{sent.email}</strong> 宛に管理者パスワード再設定のリンクを送信しました。
+            <strong>{sent.email}</strong> 宛にリンクを送信しました。
           </Alert>
         </div>
         <p className="mb-4 text-xs text-zinc-400">
-          リンクの有効期限は 15 分です。届かない場合は迷惑メールフォルダもご確認ください。
+          届かない場合は迷惑メールフォルダもご確認ください。
         </p>
 
         {resendState === "sent" ? (
@@ -88,10 +88,7 @@ export function AdminForgotPasswordPage() {
   }
 
   return (
-    <AuthLayout
-      title="管理者パスワード再設定"
-      subtitle="登録したメールアドレスに再設定リンクを送信します"
-    >
+    <AuthLayout title="管理者パスワード再設定" subtitle="メールアドレスに再設定リンクを送ります">
       {serverError && (
         <div className="mb-4">
           <Alert kind="error">{serverError}</Alert>

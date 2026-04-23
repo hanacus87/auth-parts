@@ -79,8 +79,8 @@ export function VerifyEmailPage() {
 
   if (status === "verifying") {
     return (
-      <AuthLayout title="メールアドレスの確認" subtitle="確認中です…">
-        <p className="text-sm text-zinc-400">トークンを検証しています。少々お待ちください。</p>
+      <AuthLayout title="確認中..." subtitle="しばらくお待ちください">
+        <p className="text-sm text-zinc-400">メールアドレスを確認しています。</p>
       </AuthLayout>
     );
   }
@@ -88,21 +88,21 @@ export function VerifyEmailPage() {
   if (status === "ok" || status === "already") {
     return (
       <AuthLayout
-        title="メールアドレスの確認が完了しました"
-        subtitle={status === "already" ? "既に確認済みです" : "ご登録ありがとうございます"}
+        title="メールアドレスを確認しました"
+        subtitle={status === "already" ? "確認済みです" : "ご登録ありがとうございます"}
       >
         <div className="mb-4">
           <Alert kind="success">
             {verifiedEmail ? (
               <>
-                <strong>{verifiedEmail}</strong> のメールアドレスを確認しました。
+                <strong>{verifiedEmail}</strong> を確認しました。
               </>
             ) : (
-              "メールアドレスを確認しました。"
+              "確認しました。"
             )}
           </Alert>
         </div>
-        <p className="text-sm text-zinc-400">ご利用のアプリに戻ってログインを開始してください。</p>
+        <p className="text-sm text-zinc-400">アプリに戻ってログインを開始してください。</p>
       </AuthLayout>
     );
   }
@@ -110,8 +110,8 @@ export function VerifyEmailPage() {
   const heading = status === "expired" ? "リンクの有効期限が切れています" : "リンクが無効です";
   const description =
     status === "expired"
-      ? "確認メールのリンクは 60 分間のみ有効です。下のフォームから再送できます。"
-      : "リンクが正しくないか、既に使用されています。下のフォームから再送できます。";
+      ? "下のフォームから再送できます。"
+      : "リンクが正しくないか、既に使用されています。";
 
   return (
     <AuthLayout title="メールアドレスの確認" subtitle={heading}>
@@ -120,13 +120,9 @@ export function VerifyEmailPage() {
       </div>
 
       {resendState === "sent" ? (
-        <Alert kind="success">
-          確認メールを再送しました。受信箱をご確認ください。届かない場合は迷惑メールフォルダもご確認ください。
-        </Alert>
+        <Alert kind="success">再送しました。受信箱をご確認ください。</Alert>
       ) : resendState === "rate_limited" ? (
-        <Alert kind="warning">
-          確認メールは 5 分に 1 回までしか送信できません。しばらく経ってから再度お試しください。
-        </Alert>
+        <Alert kind="warning">しばらく経ってからお試しください。</Alert>
       ) : (
         <form onSubmit={onResend} noValidate>
           {resendError && (
@@ -134,7 +130,7 @@ export function VerifyEmailPage() {
               <Alert kind="error">{resendError}</Alert>
             </div>
           )}
-          <Field label="登録したメールアドレス" error={errors.email?.message}>
+          <Field label="メールアドレス" error={errors.email?.message}>
             <Input {...register("email")} type="email" autoComplete="email" />
           </Field>
           <Button type="submit" full disabled={resendState === "sending"}>

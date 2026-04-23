@@ -18,7 +18,13 @@ import { rateLimit } from "../../lib/rate-limit";
 
 export const apiAdminSessionRouter = new Hono<AppEnv>();
 
-const adminLoginRateLimit = rateLimit({ bucket: "admin-login", windowSec: 900, limit: 10 });
+const adminLoginRateLimit = rateLimit({
+  bucket: "admin-login",
+  windowSec: 900,
+  limit: 10,
+  description:
+    "管理者ログインの試行回数が上限に達しました。15 分ほど時間をおいてから再度お試しください。",
+});
 
 const adminLoginSchema = z.object({
   email: emailField,

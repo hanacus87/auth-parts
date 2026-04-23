@@ -24,6 +24,7 @@ export function RegisterPage() {
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "rate_limited">(
     "idle",
   );
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
 
   const {
     register,
@@ -62,8 +63,10 @@ export function RegisterPage() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         setResendState("rate_limited");
+        setResendMessage(err.message);
       } else {
         setResendState("idle");
+        setResendMessage(null);
       }
     }
   }
@@ -88,7 +91,9 @@ export function RegisterPage() {
         {resendState === "sent" ? (
           <Alert kind="success">再送しました。</Alert>
         ) : resendState === "rate_limited" ? (
-          <Alert kind="warning">しばらく経ってからお試しください。</Alert>
+          <Alert kind="warning">
+            {resendMessage ?? "しばらく時間をおいてから再度お試しください。"}
+          </Alert>
         ) : (
           <Button
             type="button"

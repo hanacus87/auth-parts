@@ -64,6 +64,10 @@ apiResetPasswordRouter.post("/forgot-password", async (c) => {
         });
       } catch (err) {
         console.error("sendPasswordResetEmail failed:", err);
+        await db
+          .delete(passwordResetTokens)
+          .where(eq(passwordResetTokens.token, token))
+          .catch(() => {});
       }
     }
   }

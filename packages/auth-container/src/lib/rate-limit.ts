@@ -12,6 +12,7 @@ export function rateLimit(opts: {
   bucket: string;
   windowSec: number;
   limit: number;
+  description?: string;
 }): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     const ip = c.req.header("CF-Connecting-IP") ?? "anon";
@@ -21,7 +22,15 @@ export function rateLimit(opts: {
     const count = raw ? parseInt(raw, 10) : 0;
     if (count >= opts.limit) {
       c.header("Retry-After", String(opts.windowSec));
-      return c.json({ error: "rate_limited" }, 429);
+      return c.json(
+        {
+          error: "rate_limited",
+          error_description:
+            opts.description ??
+            "リクエストが集中しています。しばらく時間をおいてから再度お試しください。",
+        },
+        429,
+      );
     }
     await c.env.RATE_LIMIT_KV.put(key, String(count + 1), {
       expirationTtl: opts.windowSec,

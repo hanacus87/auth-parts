@@ -36,12 +36,20 @@ export async function issueVerificationAndSend(
     expiresAt,
   });
   const verificationUrl = `${env.ISSUER}/verify-email?token=${encodeURIComponent(token)}`;
-  await sendVerificationEmail(env, {
-    to: user.email,
-    userName: user.name,
-    verificationUrl,
-    expiresInMinutes: TOKEN_TTL_MINUTES,
-  });
+  try {
+    await sendVerificationEmail(env, {
+      to: user.email,
+      userName: user.name,
+      verificationUrl,
+      expiresInMinutes: TOKEN_TTL_MINUTES,
+    });
+  } catch (err) {
+    await db
+      .delete(emailVerificationTokens)
+      .where(eq(emailVerificationTokens.token, token))
+      .catch(() => {});
+    throw err;
+  }
 }
 
 /**
@@ -125,7 +133,8 @@ apiVerifyEmailRouter.post("/resend-verification", async (c) => {
     return c.json(
       {
         error: "rate_limited",
-        error_description: "確認メールは 5 分に 1 回まで送信できます",
+        error_description:
+          "確認メールの再送は 5 分に 1 回までです。少し時間をおいてから再度お試しください。",
       },
       429,
     );

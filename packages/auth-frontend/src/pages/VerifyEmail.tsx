@@ -26,6 +26,7 @@ export function VerifyEmailPage() {
     "idle",
   );
   const [resendError, setResendError] = useState<string | null>(null);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
 
   const {
     register,
@@ -70,6 +71,7 @@ export function VerifyEmailPage() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         setResendState("rate_limited");
+        setResendMessage(err.message);
       } else {
         setResendState("idle");
         setResendError(err instanceof ApiError ? err.message : "送信に失敗しました");
@@ -122,7 +124,9 @@ export function VerifyEmailPage() {
       {resendState === "sent" ? (
         <Alert kind="success">再送しました。受信箱をご確認ください。</Alert>
       ) : resendState === "rate_limited" ? (
-        <Alert kind="warning">しばらく経ってからお試しください。</Alert>
+        <Alert kind="warning">
+          {resendMessage ?? "しばらく時間をおいてから再度お試しください。"}
+        </Alert>
       ) : (
         <form onSubmit={onResend} noValidate>
           {resendError && (

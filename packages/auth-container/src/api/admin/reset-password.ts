@@ -63,6 +63,10 @@ apiAdminResetPasswordRouter.post("/admin/forgot-password", async (c) => {
         });
       } catch (err) {
         console.error("sendAdminPasswordResetEmail failed:", err);
+        await db
+          .delete(adminPasswordResetTokens)
+          .where(eq(adminPasswordResetTokens.token, token))
+          .catch(() => {});
       }
     }
   }

@@ -2,13 +2,24 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "type": "bun",
+      "type": "node",
       "request": "launch",
-      "name": "AuthContainer",
-      "program": "${workspaceFolder}/packages/auth-container/src/index.ts",
-      "cwd": "${workspaceFolder}/packages/auth-container",
-      "watchMode": true,
-      "stopOnEntry": false
+      "name": "Auth Container (wrangler)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["run", "dev:auth"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Auth Frontend (build watch)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["run", "dev:auth-frontend"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
     },
     {
       "type": "bun",
@@ -51,9 +62,35 @@
   ],
   "compounds": [
     {
+      "name": "Auth (container + frontend)",
+      "configurations": ["Auth Container (wrangler)", "Auth Frontend (build watch)"],
+      "stopAll": true
+    },
+    {
+      "name": "App 1 (+ Auth)",
+      "configurations": [
+        "Auth Container (wrangler)",
+        "Auth Frontend (build watch)",
+        "App Server",
+        "Frontend (Vite)"
+      ],
+      "stopAll": true
+    },
+    {
+      "name": "App 2 (+ Auth)",
+      "configurations": [
+        "Auth Container (wrangler)",
+        "Auth Frontend (build watch)",
+        "App Server Sub",
+        "Frontend Sub (Vite)"
+      ],
+      "stopAll": true
+    },
+    {
       "name": "All Servers",
       "configurations": [
-        "AuthContainer",
+        "Auth Container (wrangler)",
+        "Auth Frontend (build watch)",
         "App Server",
         "App Server Sub",
         "Frontend (Vite)",

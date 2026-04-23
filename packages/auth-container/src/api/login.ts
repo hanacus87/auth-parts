@@ -11,7 +11,13 @@ import { rateLimit } from "../lib/rate-limit";
 
 export const apiLoginRouter = new Hono<AppEnv>();
 
-const loginRateLimit = rateLimit({ bucket: "login", windowSec: 900, limit: 10 });
+const loginRateLimit = rateLimit({
+  bucket: "login",
+  windowSec: 900,
+  limit: 10,
+  description:
+    "ログインの試行回数が上限に達しました。15 分ほど時間をおいてから再度お試しください。",
+});
 
 const loginSchema = z.object({
   email: emailField,

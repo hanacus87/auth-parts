@@ -18,7 +18,13 @@ import { rateLimit } from "../lib/rate-limit";
 
 export const apiRegisterRouter = new Hono<AppEnv>();
 
-const registerRateLimit = rateLimit({ bucket: "register", windowSec: 3600, limit: 5 });
+const registerRateLimit = rateLimit({
+  bucket: "register",
+  windowSec: 3600,
+  limit: 5,
+  description:
+    "登録リクエストの回数が上限に達しました。1 時間ほど時間をおいてから再度お試しください。",
+});
 
 const registerSchema = z
   .object({

@@ -11,6 +11,7 @@ import { apiAdminAdminsRouter } from "./admin/admins";
 import { apiVerifyEmailRouter } from "./verify-email";
 import { apiResetPasswordRouter } from "./reset-password";
 import { apiAdminResetPasswordRouter } from "./admin/reset-password";
+import { apiAdminKeysRouter } from "./admin/keys";
 
 export const apiRouter = new Hono<AppEnv>();
 
@@ -25,3 +26,4 @@ apiRouter.route("/", apiAdminUsersRouter);
 apiRouter.route("/", apiAdminClientsRouter);
 apiRouter.route("/", apiAdminAdminsRouter);
 apiRouter.route("/", apiAdminResetPasswordRouter);
+apiRouter.route("/", apiAdminKeysRouter);

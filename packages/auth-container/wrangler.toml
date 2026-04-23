@@ -14,6 +14,16 @@ binding = "DB"
 database_name = "auth-container-prod"
 database_id = "d9c13080-fc2d-475b-b9c8-d33d15e5da5b"
 
+# KV バインディング (レート制限用カウンタ)
+# 初回のみ `wrangler kv namespace create auth-container-rate-limit` を実行して得た id を反映する。
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "6d667761f9b14303aad1a96404279c68"
+
+# 月次の JWT 署名鍵ローテ / リタイアを自動実行する Cron Trigger。
+[triggers]
+crons = ["0 3 1 * *"]
+
 # Static Assets (Vite で auth-frontend を build した成果物)
 # SPA ルーティングは Hono の app.get("*") で index.html に fallback させる
 [assets]

@@ -14,8 +14,11 @@ import { CSRF_FIELD, ensureCsrfToken, getCsrfCookie, verifyCsrf } from "../../li
 import { verifyPasswordConstantTime } from "../../lib/password";
 import { requireAdmin, getCurrentAdmin } from "../../lib/admin-middleware";
 import { emailField, passwordField, zodBadRequest } from "../../lib/validation";
+import { rateLimit } from "../../lib/rate-limit";
 
 export const apiAdminSessionRouter = new Hono<AppEnv>();
+
+const adminLoginRateLimit = rateLimit({ bucket: "admin-login", windowSec: 900, limit: 10 });
 
 const adminLoginSchema = z.object({
   email: emailField,
@@ -39,7 +42,7 @@ apiAdminSessionRouter.get("/admin/session", requireAdmin, (c) => {
  * `POST /api/admin/login` — 管理者ログイン。
  * ログイン前なのでセッションが無く CSRF 検証は行わない。
  */
-apiAdminSessionRouter.post("/admin/login", async (c) => {
+apiAdminSessionRouter.post("/admin/login", adminLoginRateLimit, async (c) => {
   const db = c.var.db;
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
 

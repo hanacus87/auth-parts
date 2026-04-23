@@ -191,12 +191,13 @@ export function ClientForm({ mode }: Props) {
           <Input {...register("name")} autoComplete="off" />
         </Field>
 
-        <Field label="コールバック URL" hint="(1 つ以上)" error={errors.redirect_uris?.message}>
+        <Field label="コールバック URL" hint="(1 つ以上)">
           <RepeatableInput
             control={control}
             name="redirect_uris"
             placeholder="https://example.com/auth/callback"
             minRows={1}
+            arrayError={errors.redirect_uris?.root?.message ?? errors.redirect_uris?.message}
           />
         </Field>
 
@@ -223,7 +224,12 @@ export function ClientForm({ mode }: Props) {
           hint="(任意)"
           error={errors.backchannel_logout_uri?.message}
         >
-          <Input {...register("backchannel_logout_uri")} type="url" autoComplete="off" />
+          <Input
+            {...register("backchannel_logout_uri")}
+            type="url"
+            autoComplete="off"
+            placeholder="https://example.com/auth/backchannel-logout"
+          />
         </Field>
 
         <Field label="ログアウト後の遷移先 URL" hint="(任意)">

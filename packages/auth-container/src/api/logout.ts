@@ -6,6 +6,7 @@ import { accessTokens, clients, opSessions, refreshTokens } from "../db/schema";
 import { clearSessionCookie, getSessionCookie } from "../lib/session";
 import { signLogoutToken, verifyIdTokenHint } from "../lib/jwt";
 import { generateId } from "../lib/crypto";
+import { isPublicHttpsUrl } from "../lib/url-policy";
 import {
   CSRF_FIELD,
   LOGOUT_CSRF_COOKIE,
@@ -105,8 +106,16 @@ apiLogoutRouter.post("/logout", async (c) => {
           db.delete(opSessions).where(eq(opSessions.id, sessionId)),
         ]);
 
+        const isDev = c.env.ENVIRONMENT === "development";
         const allRegisteredClients = await db.query.clients.findMany();
-        const backchannelClients = allRegisteredClients.filter((cl) => cl.backchannelLogoutUri);
+        const backchannelClients = allRegisteredClients.filter(
+          (cl) =>
+            cl.backchannelLogoutUri &&
+            isPublicHttpsUrl(cl.backchannelLogoutUri, {
+              allowHttp: isDev,
+              allowLoopback: isDev,
+            }),
+        );
         const notifications = backchannelClients.map(async (cl) => {
           const logoutToken = await signLogoutToken(db, c.env, {
             sub: session.userId,
@@ -122,6 +131,7 @@ apiLogoutRouter.post("/logout", async (c) => {
               headers: { "Content-Type": "application/x-www-form-urlencoded" },
               body: new URLSearchParams({ logout_token: logoutToken }),
               signal: controller.signal,
+              redirect: "error",
             });
           } catch {
           } finally {

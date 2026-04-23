@@ -4,6 +4,7 @@ import type { DB } from "../db";
 import { authorizationCodes, consents, opSessions } from "../db/schema";
 import { createConsentChallenge, setSessionCookie, type LoginChallengePayload } from "./session";
 import { generateId, generateRandomString } from "./crypto";
+import { sha256Hex } from "./token-hash";
 
 /**
  * ログイン / 登録成功後の共通後処理。
@@ -49,10 +50,11 @@ export async function finalizeLoginAndRedirect(
 
   if (!needsConsent) {
     const code = generateRandomString(32);
+    const codeHash = await sha256Hex(code);
     const codeExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     await db.insert(authorizationCodes).values({
-      code,
+      codeHash,
       clientId: challengePayload.client_id,
       userId,
       redirectUri: challengePayload.redirect_uri,

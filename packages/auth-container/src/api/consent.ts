@@ -5,6 +5,7 @@ import { authorizationCodes, clients, consents } from "../db/schema";
 import { getSessionCookie, verifyConsentChallenge } from "../lib/session";
 import { generateId, generateRandomString } from "../lib/crypto";
 import { safeEqual } from "../lib/safe-equal";
+import { sha256Hex } from "../lib/token-hash";
 
 export const apiConsentRouter = new Hono<AppEnv>();
 
@@ -112,10 +113,11 @@ apiConsentRouter.post("/consent", async (c) => {
   }
 
   const code = generateRandomString(32);
+  const codeHash = await sha256Hex(code);
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
   await db.insert(authorizationCodes).values({
-    code,
+    codeHash,
     clientId: payload.client_id,
     userId: payload.user_id,
     redirectUri: payload.redirect_uri,

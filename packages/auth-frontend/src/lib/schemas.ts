@@ -30,11 +30,15 @@ export const nameField = z
 
 const optionalShortText = z.string().trim().max(200, "値が長すぎます").optional();
 
-/** JS の URL コンストラクタで解釈可能な文字列か判定する。 */
+/**
+ * HTTP(S) スキームを持つブラウザ遷移可能な URL か判定する。
+ * javascript: / data: / file: 等の悪性スキームを明示的に弾く。
+ * サーバ側 (auth-container) で最終的な SSRF 対策は別途行う。
+ */
 function isValidUrl(v: string): boolean {
   try {
-    new URL(v);
-    return true;
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:";
   } catch {
     return false;
   }
@@ -61,11 +65,9 @@ const urlItem = z.object({ value: urlOrEmpty });
 export const clientFormSchema = z.object({
   name: z.string({ error: "クライアント名は必須です" }).trim().min(1, "クライアント名は必須です"),
 
-  redirect_uris: z
-    .array(urlItem, { error: "redirect_uris の形式が不正です" })
-    .refine((arr) => arr.some((r) => r.value !== ""), {
-      message: "redirect_uris を 1 つ以上入力してください",
-    }),
+  redirect_uris: z.array(urlItem).refine((arr) => arr.some((r) => r.value !== ""), {
+    message: "コールバック URL を 1 つ以上入力してください",
+  }),
 
   token_endpoint_auth_method: z.enum(TOKEN_ENDPOINT_AUTH_METHODS, {
     error: "token_endpoint_auth_method の値が不正です",
@@ -73,9 +75,7 @@ export const clientFormSchema = z.object({
 
   backchannel_logout_uri: urlOrEmpty,
 
-  post_logout_redirect_uris: z.array(urlItem, {
-    error: "post_logout_redirect_uris の形式が不正です",
-  }),
+  post_logout_redirect_uris: z.array(urlItem),
 });
 
 export type ClientFormInput = z.infer<typeof clientFormSchema>;

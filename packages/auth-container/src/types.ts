@@ -6,6 +6,7 @@ import type { AdminContext } from "./lib/admin-session";
 export type Bindings = {
   DB: D1Database;
   ASSETS: Fetcher;
+  RATE_LIMIT_KV: KVNamespace;
   ISSUER: string;
   SESSION_SECRET: string;
   ACCESS_TOKEN_TTL: string;

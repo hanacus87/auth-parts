@@ -4,8 +4,12 @@ import { authorizationCodes, clients, consents, opSessions } from "../db/schema"
 import { eq, and } from "drizzle-orm";
 import { createLoginChallenge, createConsentChallenge, getSessionCookie } from "../lib/session";
 import { generateRandomString } from "../lib/crypto";
+import { sha256Hex } from "../lib/token-hash";
+import { rateLimit } from "../lib/rate-limit";
 
 export const authorizeRouter = new Hono<AppEnv>();
+
+const authorizeRateLimit = rateLimit({ bucket: "authorize", windowSec: 60, limit: 60 });
 
 /**
  * `/authorize` エンドポイントのパラメータを GET / POST 両方から抽出する。
@@ -127,6 +131,13 @@ async function handleAuthorize(c: AppContext) {
     return errorRedirect("invalid_request", "Only code_challenge_method=S256 is supported");
   }
 
+  if (!params.state) {
+    return errorRedirect("invalid_request", "state is required");
+  }
+  if (!params.nonce) {
+    return errorRedirect("invalid_request", "nonce is required");
+  }
+
   const sessionId = getSessionCookie(c);
   let session = null;
   if (sessionId) {
@@ -210,10 +221,11 @@ async function handleAuthorize(c: AppContext) {
   }
 
   const code = generateRandomString(32);
+  const codeHash = await sha256Hex(code);
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
   await db.insert(authorizationCodes).values({
-    code,
+    codeHash,
     clientId: params.client_id,
     userId: session.userId,
     redirectUri: redirectUri,
@@ -232,5 +244,5 @@ async function handleAuthorize(c: AppContext) {
   return c.redirect(url.toString());
 }
 
-authorizeRouter.get("/authorize", handleAuthorize);
-authorizeRouter.post("/authorize", handleAuthorize);
+authorizeRouter.get("/authorize", authorizeRateLimit, handleAuthorize);
+authorizeRouter.post("/authorize", authorizeRateLimit, handleAuthorize);

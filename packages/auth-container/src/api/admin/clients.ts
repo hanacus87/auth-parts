@@ -18,6 +18,7 @@ import { generateId, generateRandomString } from "../../lib/crypto";
 import { CSRF_FIELD, getCsrfCookie, verifyCsrf } from "../../lib/csrf";
 import { getCurrentAdmin, requireAdmin } from "../../lib/admin-middleware";
 import { countDependencies, type DependencySpec } from "../../lib/dep-counts";
+import { isPublicHttpsUrl } from "../../lib/url-policy";
 
 export const apiAdminClientsRouter = new Hono<AppEnv>();
 
@@ -62,48 +63,67 @@ const CLIENT_DEPS: DependencySpec[] = [
   { label: "同意履歴", table: consents, column: consents.clientId },
 ];
 
-/** JS の URL コンストラクタで解釈可能な文字列かを判定する。 */
-function isValidUrl(v: string): boolean {
+/**
+ * HTTP(S) スキームを持つブラウザ遷移可能な URL かを判定する。
+ * redirect_uris / post_logout_redirect_uris 向け。
+ * javascript:, data:, file: 等の悪性スキームを弾く目的で scheme チェックのみ行う。
+ */
+function isHttpUrl(v: string): boolean {
   try {
-    new URL(v);
-    return true;
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:";
   } catch {
     return false;
   }
 }
 
-const optionalUrlString = z
+/**
+ * サーバ側 fetch の到達先として安全な URL かを判定する (backchannel_logout_uri 向け)。
+ * SSRF 防止のため HTTPS 限定 (dev のみ HTTP 許容) + loopback / private IP / 予約 TLD を拒否する。
+ */
+function buildIsPublicHttpsUrl(c: AppContext) {
+  const isDev = c.env.ENVIRONMENT === "development";
+  return (v: string) => isPublicHttpsUrl(v, { allowHttp: isDev, allowLoopback: isDev });
+}
+
+const optionalBrowserUrl = z
   .string({ error: "文字列を入力してください" })
   .transform((v) => v.trim())
-  .refine((v) => v === "" || isValidUrl(v), {
-    message: "有効な URL を入力してください",
+  .refine((v) => v === "" || isHttpUrl(v), {
+    message: "有効な http(s) URL を入力してください",
   });
 
-const optionalUrlToNull = z
-  .string({ error: "文字列を入力してください" })
-  .optional()
-  .transform((v) => (v ?? "").trim())
-  .refine((v) => v === "" || isValidUrl(v), {
-    message: "有効な URL を入力してください",
-  })
-  .transform((v) => (v === "" ? null : v));
-
 const urlList = z
-  .array(optionalUrlString, { error: "URL 配列の形式が不正です" })
+  .array(optionalBrowserUrl, { error: "URL 配列の形式が不正です" })
   .transform((arr) => arr.filter((v) => v !== ""));
 
-const clientFormSchema = z.object({
-  [CSRF_FIELD]: z.string({ error: "CSRF トークンが不正です" }),
-  name: z.string({ error: "クライアント名は必須です" }).trim().min(1, "クライアント名は必須です"),
-  redirect_uris: urlList.refine((arr) => arr.length >= 1, {
-    message: "redirect_uris を 1 つ以上指定してください",
-  }),
-  token_endpoint_auth_method: z.enum(TOKEN_ENDPOINT_AUTH_METHODS, {
-    error: "token_endpoint_auth_method の値が不正です",
-  }),
-  backchannel_logout_uri: optionalUrlToNull,
-  post_logout_redirect_uris: urlList.default([]),
-});
+/**
+ * backchannel_logout_uri のバリデータは本関数で build する。
+ * Hono のリクエストコンテキストから ENVIRONMENT を参照して dev 時のみ http を許容する。
+ */
+function buildClientFormSchema(c: AppContext) {
+  const isPublicHttps = buildIsPublicHttpsUrl(c);
+  const optionalBackchannelUrl = z
+    .string({ error: "文字列を入力してください" })
+    .optional()
+    .transform((v) => (v ?? "").trim())
+    .refine((v) => v === "" || isPublicHttps(v), {
+      message: "公開 HTTPS の URL を入力してください (loopback / private IP は不可)",
+    })
+    .transform((v) => (v === "" ? null : v));
+  return z.object({
+    [CSRF_FIELD]: z.string({ error: "CSRF トークンが不正です" }),
+    name: z.string({ error: "クライアント名は必須です" }).trim().min(1, "クライアント名は必須です"),
+    redirect_uris: urlList.refine((arr) => arr.length >= 1, {
+      message: "コールバック URL を 1 つ以上指定してください",
+    }),
+    token_endpoint_auth_method: z.enum(TOKEN_ENDPOINT_AUTH_METHODS, {
+      error: "token_endpoint_auth_method の値が不正です",
+    }),
+    backchannel_logout_uri: optionalBackchannelUrl,
+    post_logout_redirect_uris: urlList.default([]),
+  });
+}
 
 /** Zod バリデーションエラーを 400 JSON レスポンスに変換する (admin/clients 用フォーマット)。 */
 function badRequest(c: AppContext, error: z.ZodError) {
@@ -181,7 +201,7 @@ apiAdminClientsRouter.post("/admin/clients", requireAdmin, async (c) => {
   const guard = csrfGuard(c, body);
   if (guard) return guard;
 
-  const parsed = clientFormSchema.safeParse(body);
+  const parsed = buildClientFormSchema(c).safeParse(body);
   if (!parsed.success) return badRequest(c, parsed.error);
   const input = parsed.data;
 
@@ -223,7 +243,7 @@ apiAdminClientsRouter.post("/admin/clients/:id", requireAdmin, async (c) => {
   const guard = csrfGuard(c, body);
   if (guard) return guard;
 
-  const parsed = clientFormSchema.safeParse(body);
+  const parsed = buildClientFormSchema(c).safeParse(body);
   if (!parsed.success) return badRequest(c, parsed.error);
   const input = parsed.data;
 

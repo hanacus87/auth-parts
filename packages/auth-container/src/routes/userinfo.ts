@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppContext, AppEnv } from "../types";
 import { accessTokens, users } from "../db/schema";
 import { eq } from "drizzle-orm";
+import { verifyAccessToken } from "../lib/jwt";
 
 export const userinfoRouter = new Hono<AppEnv>();
 
@@ -58,8 +59,17 @@ async function handleUserinfo(c: AppContext) {
     return c.json({ error: "invalid_request" }, 400);
   }
 
+  const payload = await verifyAccessToken(db, c.env, token!);
+  if (!payload || typeof payload.jti !== "string") {
+    c.header(
+      "WWW-Authenticate",
+      'Bearer realm="oidc", error="invalid_token", error_description="Access token verification failed"',
+    );
+    return c.json({ error: "invalid_token" }, 401);
+  }
+
   const storedToken = await db.query.accessTokens.findFirst({
-    where: eq(accessTokens.token, token!),
+    where: eq(accessTokens.jti, payload.jti),
   });
 
   if (!storedToken) {
@@ -82,6 +92,14 @@ async function handleUserinfo(c: AppContext) {
     c.header(
       "WWW-Authenticate",
       'Bearer realm="oidc", error="invalid_token", error_description="Access token has expired"',
+    );
+    return c.json({ error: "invalid_token" }, 401);
+  }
+
+  if (payload.aud !== storedToken.clientId) {
+    c.header(
+      "WWW-Authenticate",
+      'Bearer realm="oidc", error="invalid_token", error_description="Audience mismatch"',
     );
     return c.json({ error: "invalid_token" }, 401);
   }

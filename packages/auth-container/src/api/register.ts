@@ -14,8 +14,11 @@ import {
   zodBadRequest,
 } from "../lib/validation";
 import { issueVerificationAndSend } from "./verify-email";
+import { rateLimit } from "../lib/rate-limit";
 
 export const apiRegisterRouter = new Hono<AppEnv>();
+
+const registerRateLimit = rateLimit({ bucket: "register", windowSec: 3600, limit: 5 });
 
 const registerSchema = z
   .object({
@@ -52,7 +55,7 @@ apiRegisterRouter.get("/register/context", async (c) => {
  * `POST /api/register` — 新規ユーザー登録 + 確認メール送信。
  * 重複メールは 409。送信失敗は SPA 側の再送ボタンで復旧させるためログのみ残して登録は成功扱い。
  */
-apiRegisterRouter.post("/register", async (c) => {
+apiRegisterRouter.post("/register", registerRateLimit, async (c) => {
   const db = c.var.db;
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
 

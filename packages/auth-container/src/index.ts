@@ -9,6 +9,7 @@ import { authorizeRouter } from "./routes/authorize";
 import { tokenRouter } from "./routes/token";
 import { userinfoRouter } from "./routes/userinfo";
 import { apiRouter } from "./api";
+import { rotateAndRetireKeys } from "./lib/key-rotation";
 
 const app = new Hono<AppEnv>();
 
@@ -62,4 +63,14 @@ app.get("*", async (c) => {
   return new Response(res.body, res);
 });
 
-export default app;
+/**
+ * Cloudflare Workers のエントリポイント。
+ * `fetch` は通常の HTTP リクエスト、`scheduled` は wrangler.toml の `[triggers] crons` 発火時に呼ばれる。
+ * scheduled では JWT 署名鍵の月次ローテ / グレース満了鍵のリタイアを `ctx.waitUntil` で非同期実行する。
+ */
+export default {
+  fetch: app.fetch,
+  scheduled: async (_event, env, ctx) => {
+    ctx.waitUntil(rotateAndRetireKeys(createDb(env.DB)));
+  },
+} satisfies ExportedHandler<AppEnv["Bindings"]>;

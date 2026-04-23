@@ -66,12 +66,15 @@ CREATE TABLE `crypto_keys` (
 	`alg` text DEFAULT 'RS256' NOT NULL,
 	`public_key_pem` text NOT NULL,
 	`private_key_pem` text NOT NULL,
+	`status` text DEFAULT 'active' NOT NULL,
+	`deprecated_at` integer,
+	`retired_at` integer,
 	`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL
 );
 
 -- authorization_codes
 CREATE TABLE `authorization_codes` (
-	`code` text PRIMARY KEY NOT NULL,
+	`code_hash` text PRIMARY KEY NOT NULL,
 	`client_id` text NOT NULL,
 	`user_id` text NOT NULL,
 	`redirect_uri` text NOT NULL,
@@ -90,8 +93,7 @@ CREATE TABLE `authorization_codes` (
 
 -- access_tokens
 CREATE TABLE `access_tokens` (
-	`token` text PRIMARY KEY NOT NULL,
-	`jti` text NOT NULL,
+	`jti` text PRIMARY KEY NOT NULL,
 	`client_id` text NOT NULL,
 	`user_id` text NOT NULL,
 	`auth_code_id` text,
@@ -102,11 +104,10 @@ CREATE TABLE `access_tokens` (
 	FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
 );
-CREATE UNIQUE INDEX `access_tokens_jti_unique` ON `access_tokens` (`jti`);
 
 -- refresh_tokens
 CREATE TABLE `refresh_tokens` (
-	`token` text PRIMARY KEY NOT NULL,
+	`token_hash` text PRIMARY KEY NOT NULL,
 	`client_id` text NOT NULL,
 	`user_id` text NOT NULL,
 	`scopes` text NOT NULL,

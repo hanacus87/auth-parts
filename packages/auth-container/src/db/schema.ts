@@ -75,11 +75,12 @@ export const clients = sqliteTable("clients", {
 
 /**
  * 認可コード (RFC 6749 §4.1.2, RFC 7636 §4.5)。1 回のみ使用可能で `used` で消費管理。
+ * `codeHash` は平文コードの SHA-256 16 進。DB には hash のみ保存し、平文はクライアントへの返却時のみ扱う。
  * `codeChallenge`/`codeChallengeMethod` は PKCE (RFC 7636)、`nonce`/`authTime`/`sessionId` は
  * ID Token (OIDC Core §3.1.2.1) 発行に利用する。
  */
 export const authorizationCodes = sqliteTable("authorization_codes", {
-  code: text("code").primaryKey(),
+  codeHash: text("code_hash").primaryKey(),
   clientId: text("client_id")
     .notNull()
     .references(() => clients.id),
@@ -102,11 +103,11 @@ export const authorizationCodes = sqliteTable("authorization_codes", {
 
 /**
  * アクセストークン (RFC 6749 §1.4, RFC 6750, RFC 9068)。
+ * JWT 本文は DB に保存せず、`jti` と付随メタデータのみを索引化する。
  * `authCodeId` は RFC 9700 §4.14 の再利用検知時に family 単位で revoke するための紐付け。
  */
 export const accessTokens = sqliteTable("access_tokens", {
-  token: text("token").primaryKey(),
-  jti: text("jti").notNull().unique(),
+  jti: text("jti").primaryKey(),
   clientId: text("client_id")
     .notNull()
     .references(() => clients.id),
@@ -124,11 +125,12 @@ export const accessTokens = sqliteTable("access_tokens", {
 
 /**
  * リフレッシュトークン (RFC 6749 §6, OIDC Core §12, RFC 9700 §4.14)。
+ * `tokenHash` は平文トークンの SHA-256 16 進。平文は発行時のみクライアントに返し、DB には保持しない。
  * `authTime`/`sessionId` は OIDC Core §12.2 / Back-Channel Logout §2.1 に基づき
  * refresh で再発行する ID Token に引き継ぐ。`replacedBy` で rotation チェーンを追跡する。
  */
 export const refreshTokens = sqliteTable("refresh_tokens", {
-  token: text("token").primaryKey(),
+  tokenHash: text("token_hash").primaryKey(),
   clientId: text("client_id")
     .notNull()
     .references(() => clients.id),
@@ -230,12 +232,21 @@ export const adminPasswordResetTokens = sqliteTable("admin_password_reset_tokens
     .default(sql`(unixepoch() * 1000)`),
 });
 
-/** JWT 署名用 RSA 鍵 (kid 別)。起動時に D1 からロードし、未存在なら生成して INSERT する。 */
+/**
+ * JWT 署名用 RSA 鍵 (kid 別)。
+ * `status='active'` は署名に使用、`deprecated` は検証のみ許可、`retired` は JWKS からも検証からも除外される。
+ * 月次 Cron Trigger が 30 日経過した active を deprecated に、7 日経過した deprecated を retired に遷移させる。
+ */
 export const cryptoKeys = sqliteTable("crypto_keys", {
   kid: text("kid").primaryKey(),
   alg: text("alg").notNull().default("RS256"),
   publicKeyPem: text("public_key_pem").notNull(),
   privateKeyPem: text("private_key_pem").notNull(),
+  status: text("status", { enum: ["active", "deprecated", "retired"] })
+    .notNull()
+    .default("active"),
+  deprecatedAt: integer("deprecated_at", { mode: "timestamp_ms" }),
+  retiredAt: integer("retired_at", { mode: "timestamp_ms" }),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .default(sql`(unixepoch() * 1000)`),

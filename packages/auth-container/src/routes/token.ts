@@ -14,14 +14,18 @@ import { verifyPKCE } from "../lib/pkce";
 import { signAccessToken, signIdToken } from "../lib/jwt";
 import { generateId, generateRandomString } from "../lib/crypto";
 import { safeEqual } from "../lib/safe-equal";
+import { sha256Hex } from "../lib/token-hash";
+import { rateLimit } from "../lib/rate-limit";
 
 export const tokenRouter = new Hono<AppEnv>();
+
+const tokenRateLimit = rateLimit({ bucket: "token", windowSec: 60, limit: 30 });
 
 /**
  * `/token` エンドポイント。grant_type を振り分けて authorization_code / refresh_token を処理する。
  * 準拠: RFC 6749 §3.2, RFC 7636 §4.6, OIDC Core §3.1.3。
  */
-tokenRouter.post("/token", async (c) => {
+tokenRouter.post("/token", tokenRateLimit, async (c) => {
   const body = await c.req.parseBody();
   const grantType = String(body["grant_type"] ?? "");
 
@@ -161,16 +165,17 @@ async function handleAuthorizationCodeGrant(
     );
   }
 
+  const codeHash = await sha256Hex(code);
   const marked = await db
     .update(authorizationCodes)
     .set({ used: true })
-    .where(and(eq(authorizationCodes.code, code), eq(authorizationCodes.used, false)))
+    .where(and(eq(authorizationCodes.codeHash, codeHash), eq(authorizationCodes.used, false)))
     .returning();
 
   if (marked.length === 0) {
     await db.batch([
-      db.update(accessTokens).set({ revoked: true }).where(eq(accessTokens.authCodeId, code)),
-      db.update(refreshTokens).set({ revoked: true }).where(eq(refreshTokens.authCodeId, code)),
+      db.update(accessTokens).set({ revoked: true }).where(eq(accessTokens.authCodeId, codeHash)),
+      db.update(refreshTokens).set({ revoked: true }).where(eq(refreshTokens.authCodeId, codeHash)),
     ]);
     return tokenError(c, "invalid_grant", "Invalid or already-used authorization code");
   }
@@ -219,11 +224,10 @@ async function handleAuthorizationCodeGrant(
   });
 
   await db.insert(accessTokens).values({
-    token: accessTokenJwt,
     jti,
     clientId: client.id,
     userId: user.id,
-    authCodeId: authCode.code,
+    authCodeId: authCode.codeHash,
     scopes: authCode.scopes,
     expiresAt: accessTokenExpiresAt,
   });
@@ -245,13 +249,13 @@ async function handleAuthorizationCodeGrant(
     refreshToken = generateRandomString(32);
     const refreshTokenTTL = Number(c.env.REFRESH_TOKEN_TTL) || 2592000;
     await db.insert(refreshTokens).values({
-      token: refreshToken,
+      tokenHash: await sha256Hex(refreshToken),
       clientId: client.id,
       userId: user.id,
       scopes: authCode.scopes,
       authTime: authCode.authTime,
       sessionId: authCode.sessionId,
-      authCodeId: authCode.code,
+      authCodeId: authCode.codeHash,
       expiresAt: new Date(Date.now() + refreshTokenTTL * 1000),
     });
   }
@@ -296,8 +300,9 @@ async function handleRefreshTokenGrant(
     return tokenError(c, "unauthorized_client", "Client is not allowed to use refresh_token grant");
   }
 
+  const refreshTokenHash = await sha256Hex(refreshTokenValue);
   const storedToken = await db.query.refreshTokens.findFirst({
-    where: eq(refreshTokens.token, refreshTokenValue),
+    where: eq(refreshTokens.tokenHash, refreshTokenHash),
   });
 
   if (!storedToken) {
@@ -351,15 +356,16 @@ async function handleRefreshTokenGrant(
   }
 
   const newRefreshToken = generateRandomString(32);
+  const newRefreshTokenHash = await sha256Hex(newRefreshToken);
   const refreshTokenTTL = Number(c.env.REFRESH_TOKEN_TTL) || 2592000;
 
   await db
     .update(refreshTokens)
-    .set({ revoked: true, replacedBy: newRefreshToken })
-    .where(eq(refreshTokens.token, refreshTokenValue));
+    .set({ revoked: true, replacedBy: newRefreshTokenHash })
+    .where(eq(refreshTokens.tokenHash, refreshTokenHash));
 
   await db.insert(refreshTokens).values({
-    token: newRefreshToken,
+    tokenHash: newRefreshTokenHash,
     clientId: client.id,
     userId: storedToken.userId,
     scopes,
@@ -390,7 +396,6 @@ async function handleRefreshTokenGrant(
   });
 
   await db.insert(accessTokens).values({
-    token: accessTokenJwt,
     jti,
     clientId: client.id,
     userId: user.id,

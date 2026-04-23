@@ -7,8 +7,11 @@ import { verifyLoginChallenge } from "../lib/session";
 import { finalizeLoginAndRedirect } from "../lib/post-login";
 import { verifyPasswordConstantTime } from "../lib/password";
 import { emailField, passwordField, zodBadRequest } from "../lib/validation";
+import { rateLimit } from "../lib/rate-limit";
 
 export const apiLoginRouter = new Hono<AppEnv>();
+
+const loginRateLimit = rateLimit({ bucket: "login", windowSec: 900, limit: 10 });
 
 const loginSchema = z.object({
   email: emailField,
@@ -40,7 +43,7 @@ apiLoginRouter.get("/login/context", async (c) => {
  * 認可コード or consent 画面へのリダイレクト URL を JSON で返す。
  * メール未確認ユーザーは 403 + `email_not_verified` (OIDC Core §5.1 準拠)。
  */
-apiLoginRouter.post("/login", async (c) => {
+apiLoginRouter.post("/login", loginRateLimit, async (c) => {
   const db = c.var.db;
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
 

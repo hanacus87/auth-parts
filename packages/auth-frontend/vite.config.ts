@@ -14,7 +14,7 @@ export default defineConfig({
     outDir: "../auth-container/dist-assets",
     emptyOutDir: true,
     assetsDir: "assets",
-    sourcemap: true,
+    sourcemap: false,
   },
   server: {
     port: 5175,

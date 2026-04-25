@@ -24,78 +24,37 @@
     {
       "type": "bun",
       "request": "launch",
-      "name": "App Server",
-      "program": "${workspaceFolder}/packages/app-server/src/index.ts",
-      "cwd": "${workspaceFolder}/packages/app-server",
+      "name": "BFF",
+      "program": "${workspaceFolder}/packages/demo-bff/src/index.ts",
+      "cwd": "${workspaceFolder}/packages/demo-bff",
       "watchMode": true,
       "stopOnEntry": false
     },
     {
       "type": "node",
       "request": "launch",
-      "name": "Frontend (Vite)",
+      "name": "Frontend (BFF パターン)",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["exec", "vite"],
-      "cwd": "${workspaceFolder}/packages/frontend",
+      "cwd": "${workspaceFolder}/packages/demo-frontend-bff",
       "console": "integratedTerminal",
       "skipFiles": ["<node_internals>/**"]
     },
     {
-      "type": "bun",
-      "request": "launch",
-      "name": "App Server Sub",
-      "program": "${workspaceFolder}/packages/app-server-sub/src/index.ts",
-      "cwd": "${workspaceFolder}/packages/app-server-sub",
-      "watchMode": true,
-      "stopOnEntry": false
-    },
-    {
       "type": "node",
       "request": "launch",
-      "name": "Frontend Sub (Vite)",
+      "name": "Frontend Sub (SPA 直結)",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["exec", "vite"],
-      "cwd": "${workspaceFolder}/packages/frontend-sub",
+      "cwd": "${workspaceFolder}/packages/demo-frontend-spa",
       "console": "integratedTerminal",
       "skipFiles": ["<node_internals>/**"]
     }
   ],
   "compounds": [
     {
-      "name": "Auth (container + frontend)",
-      "configurations": ["Auth Container (wrangler)", "Auth Frontend (build watch)"],
-      "stopAll": true
-    },
-    {
-      "name": "App 1 (+ Auth)",
-      "configurations": [
-        "Auth Container (wrangler)",
-        "Auth Frontend (build watch)",
-        "App Server",
-        "Frontend (Vite)"
-      ],
-      "stopAll": true
-    },
-    {
-      "name": "App 2 (+ Auth)",
-      "configurations": [
-        "Auth Container (wrangler)",
-        "Auth Frontend (build watch)",
-        "App Server Sub",
-        "Frontend Sub (Vite)"
-      ],
-      "stopAll": true
-    },
-    {
-      "name": "All Servers",
-      "configurations": [
-        "Auth Container (wrangler)",
-        "Auth Frontend (build watch)",
-        "App Server",
-        "App Server Sub",
-        "Frontend (Vite)",
-        "Frontend Sub (Vite)"
-      ],
+      "name": "BFF + Frontend",
+      "configurations": ["BFF", "Frontend (BFF パターン)"],
       "stopAll": true
     }
   ]

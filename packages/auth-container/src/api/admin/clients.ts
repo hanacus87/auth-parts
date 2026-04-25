@@ -13,6 +13,8 @@ import {
   SUPPORTED_SCOPES,
   GRANT_TYPES,
   TOKEN_ENDPOINT_AUTH_METHODS,
+  type Scope,
+  type GrantType,
 } from "../../lib/oidc-constants";
 import { generateId, generateRandomString } from "../../lib/crypto";
 import { CSRF_FIELD, getCsrfCookie, verifyCsrf } from "../../lib/csrf";
@@ -35,6 +37,37 @@ function csrfGuard(c: AppContext, body: Record<string, unknown>): Response | nul
     return c.json({ error: "invalid_csrf" }, 403);
   }
   return null;
+}
+
+/**
+ * 認証方式に応じて allowed_scopes / allowed_grant_types を決定する。
+ * 公開クライアント (token_endpoint_auth_method=none) は OAuth 2.0 BCP for Browser-Based Apps §6.2 に
+ * 従い refresh_token を扱わせない方針: scopes から `offline_access` を、grant_types から `refresh_token` を
+ * 自動除外する。confidential client は従来どおり全許可。
+ */
+function computeAllowedScopesAndGrants(authMethod: string): {
+  allowedScopes: Scope[];
+  allowedGrantTypes: GrantType[];
+} {
+  const isPublic = authMethod === "none";
+  return {
+    allowedScopes: isPublic
+      ? (SUPPORTED_SCOPES.filter((s) => s !== "offline_access") as Scope[])
+      : [...SUPPORTED_SCOPES],
+    allowedGrantTypes: isPublic
+      ? (GRANT_TYPES.filter((g) => g !== "refresh_token") as GrantType[])
+      : [...GRANT_TYPES],
+  };
+}
+
+/**
+ * 認証方式に応じて allowed_cors_origins を決定する。
+ * confidential client は server-to-server 通信が前提で CORS が無関係なため `[]` 強制。
+ * 公開クライアント (none) のみ admin が指定した値を採用する。
+ * 公開クライアントで空入力の防止は buildClientFormSchema 側 superRefine で別途バリデートする。
+ */
+function computeAllowedCorsOrigins(authMethod: string, input: string[]): string[] {
+  return authMethod === "none" ? input : [];
 }
 
 /**
@@ -100,6 +133,9 @@ const urlList = z
 /**
  * backchannel_logout_uri のバリデータは本関数で build する。
  * Hono のリクエストコンテキストから ENVIRONMENT を参照して dev 時のみ http を許容する。
+ * 公開クライアント (token_endpoint_auth_method=none) は OAuth 2.0 BCP for Browser-Based Apps §6.2 に
+ * 従い ブラウザから fetch する以上 CORS origin が必須になるため、superRefine で「allowed_cors_origins
+ * 最低 1 件」を強制する (UI 側でも同じガードがあるが、API 直接呼び出しに対する defense-in-depth)。
  */
 function buildClientFormSchema(c: AppContext) {
   const isPublicHttps = buildIsPublicHttpsUrl(c);
@@ -111,18 +147,32 @@ function buildClientFormSchema(c: AppContext) {
       message: "公開 HTTPS の URL を入力してください (loopback / private IP は不可)",
     })
     .transform((v) => (v === "" ? null : v));
-  return z.object({
-    [CSRF_FIELD]: z.string({ error: "CSRF トークンが不正です" }),
-    name: z.string({ error: "クライアント名は必須です" }).trim().min(1, "クライアント名は必須です"),
-    redirect_uris: urlList.refine((arr) => arr.length >= 1, {
-      message: "コールバック URL を 1 つ以上指定してください",
-    }),
-    token_endpoint_auth_method: z.enum(TOKEN_ENDPOINT_AUTH_METHODS, {
-      error: "token_endpoint_auth_method の値が不正です",
-    }),
-    backchannel_logout_uri: optionalBackchannelUrl,
-    post_logout_redirect_uris: urlList.default([]),
-  });
+  return z
+    .object({
+      [CSRF_FIELD]: z.string({ error: "CSRF トークンが不正です" }),
+      name: z
+        .string({ error: "クライアント名は必須です" })
+        .trim()
+        .min(1, "クライアント名は必須です"),
+      redirect_uris: urlList.refine((arr) => arr.length >= 1, {
+        message: "コールバック URL を 1 つ以上指定してください",
+      }),
+      token_endpoint_auth_method: z.enum(TOKEN_ENDPOINT_AUTH_METHODS, {
+        error: "token_endpoint_auth_method の値が不正です",
+      }),
+      backchannel_logout_uri: optionalBackchannelUrl,
+      post_logout_redirect_uris: urlList.default([]),
+      allowed_cors_origins: urlList.default([]),
+    })
+    .superRefine((data, ctx) => {
+      if (data.token_endpoint_auth_method === "none" && data.allowed_cors_origins.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["allowed_cors_origins"],
+          message: "公開クライアントでは Web Origin を 1 つ以上指定してください",
+        });
+      }
+    });
 }
 
 /** Zod バリデーションエラーを 400 JSON レスポンスに変換する (admin/clients 用フォーマット)。 */
@@ -161,6 +211,7 @@ apiAdminClientsRouter.get("/admin/clients", requireAdmin, async (c) => {
       allowedGrantTypes: cl.allowedGrantTypes,
       backchannelLogoutUri: cl.backchannelLogoutUri ?? "",
       postLogoutRedirectUris: cl.postLogoutRedirectUris,
+      allowedCorsOrigins: cl.allowedCorsOrigins,
       createdByAdminId: cl.createdByAdminId,
       createdAt: cl.createdAt.toISOString(),
     })),
@@ -185,6 +236,7 @@ apiAdminClientsRouter.get("/admin/clients/:id", requireAdmin, async (c) => {
       allowedGrantTypes: client.allowedGrantTypes,
       backchannelLogoutUri: client.backchannelLogoutUri ?? "",
       postLogoutRedirectUris: client.postLogoutRedirectUris,
+      allowedCorsOrigins: client.allowedCorsOrigins,
       createdByAdminId: client.createdByAdminId,
     },
   });
@@ -210,16 +262,25 @@ apiAdminClientsRouter.post("/admin/clients", requireAdmin, async (c) => {
   const isPublic = input.token_endpoint_auth_method === "none";
   const newSecret = isPublic ? null : generateRandomString(32);
 
+  const { allowedScopes, allowedGrantTypes } = computeAllowedScopesAndGrants(
+    input.token_endpoint_auth_method,
+  );
+  const allowedCorsOrigins = computeAllowedCorsOrigins(
+    input.token_endpoint_auth_method,
+    input.allowed_cors_origins,
+  );
+
   await db.insert(clients).values({
     id: newId,
     secret: newSecret,
     name: input.name,
     redirectUris: input.redirect_uris,
-    allowedScopes: [...SUPPORTED_SCOPES],
+    allowedScopes,
     tokenEndpointAuthMethod: input.token_endpoint_auth_method,
-    allowedGrantTypes: [...GRANT_TYPES],
+    allowedGrantTypes,
     backchannelLogoutUri: input.backchannel_logout_uri,
     postLogoutRedirectUris: input.post_logout_redirect_uris,
+    allowedCorsOrigins,
     createdByAdminId: admin.id,
   });
 
@@ -258,17 +319,26 @@ apiAdminClientsRouter.post("/admin/clients/:id", requireAdmin, async (c) => {
     secretUpdate = generatedSecret;
   }
 
+  const { allowedScopes, allowedGrantTypes } = computeAllowedScopesAndGrants(
+    input.token_endpoint_auth_method,
+  );
+  const allowedCorsOrigins = computeAllowedCorsOrigins(
+    input.token_endpoint_auth_method,
+    input.allowed_cors_origins,
+  );
+
   await db
     .update(clients)
     .set({
       ...(secretUpdate !== undefined ? { secret: secretUpdate } : {}),
       name: input.name,
       redirectUris: input.redirect_uris,
-      allowedScopes: [...SUPPORTED_SCOPES],
+      allowedScopes,
       tokenEndpointAuthMethod: input.token_endpoint_auth_method,
-      allowedGrantTypes: [...GRANT_TYPES],
+      allowedGrantTypes,
       backchannelLogoutUri: input.backchannel_logout_uri,
       postLogoutRedirectUris: input.post_logout_redirect_uris,
+      allowedCorsOrigins,
     })
     .where(eq(clients.id, id));
 

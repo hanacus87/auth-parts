@@ -244,8 +244,11 @@ async function handleAuthorizationCodeGrant(
     sid: authCode.sessionId ?? undefined,
   });
 
+  // OAuth 2.0 BCP for Browser-Based Apps §6.2: 公開クライアント (token_endpoint_auth_method=none) には
+  // refresh_token を発行しない。admin API 側で allowed_scopes から offline_access を除外する一次防御
+  // (computeAllowedScopesAndGrants) があるが、DB 直編集や移行漏れに備えた runtime での二次防御。
   let refreshToken: string | undefined;
-  if (authCode.scopes.includes("offline_access")) {
+  if (authCode.scopes.includes("offline_access") && client.tokenEndpointAuthMethod !== "none") {
     refreshToken = generateRandomString(32);
     const refreshTokenTTL = Number(c.env.REFRESH_TOKEN_TTL) || 2592000;
     await db.insert(refreshTokens).values({
@@ -298,6 +301,12 @@ async function handleRefreshTokenGrant(
 
   if (!client.allowedGrantTypes.includes("refresh_token")) {
     return tokenError(c, "unauthorized_client", "Client is not allowed to use refresh_token grant");
+  }
+
+  // OAuth 2.0 BCP for Browser-Based Apps §6.2: 公開クライアントへの refresh_token を runtime で
+  // 二重に拒否する。allowed_grant_types チェックで通常は弾かれるが、データ移行漏れ等への防御。
+  if (client.tokenEndpointAuthMethod === "none") {
+    return tokenError(c, "unauthorized_client", "Public clients cannot use refresh_token grant");
   }
 
   const refreshTokenHash = await sha256Hex(refreshTokenValue);

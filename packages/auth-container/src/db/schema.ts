@@ -67,6 +67,10 @@ export const clients = sqliteTable("clients", {
     .$type<string[]>()
     .notNull()
     .default(sql`'[]'`),
+  allowedCorsOrigins: text("allowed_cors_origins", { mode: "json" })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
   createdByAdminId: text("created_by_admin_id"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()

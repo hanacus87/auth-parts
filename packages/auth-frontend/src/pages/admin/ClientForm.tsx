@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, Copy } from "lucide-react";
 import { useAdminSession } from "../../components/AdminLayout";
@@ -13,8 +13,19 @@ import {
   GRANT_TYPES,
   SUPPORTED_SCOPES,
   TOKEN_ENDPOINT_AUTH_METHODS,
+  type TokenEndpointAuthMethod,
 } from "../../lib/oidc-constants";
 import { clientFormSchema, type ClientFormInput } from "../../lib/schemas";
+
+/**
+ * 認証方式の表示ラベル。コードベース値だけだと「none って何？」となるので機密 / 公開の区別と用途を併記する。
+ * サーバ側 (computeAllowedScopesAndGrants in api/admin/clients.ts) と意味的に整合させる。
+ */
+const AUTH_METHOD_LABELS: Record<TokenEndpointAuthMethod, string> = {
+  none: "none (公開クライアント / SPA・モバイル)",
+  client_secret_basic: "client_secret_basic (機密クライアント / Authorization ヘッダ)",
+  client_secret_post: "client_secret_post (機密クライアント / リクエストボディ)",
+};
 
 interface Props {
   mode: "new" | "edit";
@@ -29,6 +40,7 @@ interface ClientDetail {
   allowedGrantTypes: string[];
   backchannelLogoutUri: string;
   postLogoutRedirectUris: string[];
+  allowedCorsOrigins: string[];
 }
 
 /**
@@ -54,6 +66,7 @@ export function ClientForm({ mode }: Props) {
   const {
     register,
     control,
+    trigger,
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
@@ -67,8 +80,18 @@ export function ClientForm({ mode }: Props) {
       token_endpoint_auth_method: "client_secret_basic",
       backchannel_logout_uri: "",
       post_logout_redirect_uris: [],
+      allowed_cors_origins: [],
     },
   });
+
+  // 配列ルート ( `.refine` で付く redirect_uris の "1 つ以上" エラー ) は
+  // RHF の onChange (リーフのみ再検証) では消えないため、items の変化を契機に明示的に trigger する。
+  // `CorsOriginsField` 内でも同様の対処をしている。
+  const redirectUris = useWatch({ control, name: "redirect_uris" });
+  const redirectUrisError = errors.redirect_uris?.root?.message ?? errors.redirect_uris?.message;
+  useEffect(() => {
+    if (redirectUrisError) void trigger("redirect_uris");
+  }, [redirectUris, redirectUrisError, trigger]);
 
   useEffect(() => {
     if (mode !== "edit") return;
@@ -82,6 +105,7 @@ export function ClientForm({ mode }: Props) {
             .tokenEndpointAuthMethod as ClientFormInput["token_endpoint_auth_method"],
           backchannel_logout_uri: res.client.backchannelLogoutUri,
           post_logout_redirect_uris: res.client.postLogoutRedirectUris.map((v) => ({ value: v })),
+          allowed_cors_origins: res.client.allowedCorsOrigins.map((v) => ({ value: v })),
         });
       })
       .catch((err) => setServerError(err instanceof Error ? err.message : "読み込みに失敗しました"))
@@ -99,6 +123,7 @@ export function ClientForm({ mode }: Props) {
       post_logout_redirect_uris: data.post_logout_redirect_uris
         .map((r) => r.value)
         .filter((v) => v !== ""),
+      allowed_cors_origins: data.allowed_cors_origins.map((r) => r.value).filter((v) => v !== ""),
     };
     try {
       if (mode === "new") {
@@ -205,19 +230,21 @@ export function ClientForm({ mode }: Props) {
           <Select {...register("token_endpoint_auth_method")}>
             {TOKEN_ENDPOINT_AUTH_METHODS.map((m) => (
               <option key={m} value={m}>
-                {m}
+                {AUTH_METHOD_LABELS[m]}
               </option>
             ))}
           </Select>
         </Field>
 
-        <Field label="許可するスコープ" hint="(固定)">
-          <ReadOnlyChipList values={SUPPORTED_SCOPES} />
-        </Field>
+        <CorsOriginsField
+          control={control}
+          trigger={trigger}
+          arrayError={
+            errors.allowed_cors_origins?.root?.message ?? errors.allowed_cors_origins?.message
+          }
+        />
 
-        <Field label="許可する認可フロー" hint="(固定)">
-          <ReadOnlyChipList values={GRANT_TYPES} />
-        </Field>
+        <DerivedScopesAndGrants control={control} />
 
         <Field
           label="バックチャネルログアウト URL"
@@ -251,46 +278,120 @@ export function ClientForm({ mode }: Props) {
       </form>
 
       {mode === "edit" && (
-        <div className="mt-10 rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
-          <h2 className="text-sm font-semibold text-zinc-200">シークレットの再発行</h2>
-          <p className="mt-1 text-xs text-zinc-400">
-            新しいシークレットを発行します。新しい値は一度だけ表示されます。
-          </p>
+        <RotateSecretSection
+          control={control}
+          confirmingRotate={confirmingRotate}
+          setConfirmingRotate={setConfirmingRotate}
+          rotating={rotating}
+          rotateSecret={rotateSecret}
+        />
+      )}
+    </div>
+  );
+}
 
-          {confirmingRotate ? (
-            <div className="mt-3 rounded-md border border-red-900/60 bg-red-950/20 p-3">
-              <p className="text-sm text-red-100/90">
-                現在のシークレットを <strong>破棄</strong>{" "}
-                して新しい値を発行します。古いシークレットを使用している接続アプリは接続できなくなります。
-              </p>
-              <div className="mt-3 flex gap-2">
-                <Button variant="danger" size="sm" onClick={rotateSecret} disabled={rotating}>
-                  {rotating ? "発行中..." : "再生成する"}
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setConfirmingRotate(false)}
-                  disabled={rotating}
-                >
-                  キャンセル
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-3">
-              <Button
-                variant="danger"
-                onClick={() => setConfirmingRotate(true)}
-                disabled={rotating}
-              >
-                シークレットを再発行
-              </Button>
-            </div>
-          )}
+/**
+ * 編集画面の「シークレット再発行」ブロック。
+ * 認証方式が `none` (公開クライアント) の間は client_secret 自体が存在しないため、
+ * 再発行の余地が無くサーバ側 API も 400 を返す。混乱を避けるためセクション全体を非表示にする。
+ * 認証方式 dropdown を変更した瞬間に表示が切り替わるよう useWatch で現在値を監視する。
+ */
+function RotateSecretSection({
+  control,
+  confirmingRotate,
+  setConfirmingRotate,
+  rotating,
+  rotateSecret,
+}: {
+  control: ReturnType<typeof useForm<ClientFormInput>>["control"];
+  confirmingRotate: boolean;
+  setConfirmingRotate: (v: boolean) => void;
+  rotating: boolean;
+  rotateSecret: () => void;
+}) {
+  const authMethod = useWatch({ control, name: "token_endpoint_auth_method" });
+  if (authMethod === "none") return null;
+
+  return (
+    <div className="mt-10 rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
+      <h2 className="text-sm font-semibold text-zinc-200">シークレットの再発行</h2>
+      <p className="mt-1 text-xs text-zinc-400">
+        新しいシークレットを発行します。新しい値は一度だけ表示されます。
+      </p>
+
+      {confirmingRotate ? (
+        <div className="mt-3 rounded-md border border-red-900/60 bg-red-950/20 p-3">
+          <p className="text-sm text-red-100/90">
+            現在のシークレットを <strong>破棄</strong>{" "}
+            して新しい値を発行します。古いシークレットを使用している接続アプリは接続できなくなります。
+          </p>
+          <div className="mt-3 flex gap-2">
+            <Button variant="danger" size="sm" onClick={rotateSecret} disabled={rotating}>
+              {rotating ? "発行中..." : "再生成する"}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setConfirmingRotate(false)}
+              disabled={rotating}
+            >
+              キャンセル
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3">
+          <Button variant="danger" onClick={() => setConfirmingRotate(true)} disabled={rotating}>
+            シークレットを再発行
+          </Button>
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * 公開クライアント (token_endpoint_auth_method=none) の場合のみ表示される CORS 許可 origin 入力欄。
+ * 認証方式を useWatch で監視し、none 以外では何も描画しない。none 時は最低 1 件入力を要求する
+ * (バリデーションは clientFormSchema 側 superRefine + サーバ側 buildClientFormSchema で二重に効く)。
+ *
+ * redirect_uri とは独立にSPA から fetch する origin を明示する。
+ * confidential client (BFF) では server-to-server 通信のため
+ * CORS は無関係なので欄ごと出さない。
+ */
+function CorsOriginsField({
+  control,
+  trigger,
+  arrayError,
+}: {
+  control: ReturnType<typeof useForm<ClientFormInput>>["control"];
+  trigger: ReturnType<typeof useForm<ClientFormInput>>["trigger"];
+  arrayError: string | undefined;
+}) {
+  const authMethod = useWatch({ control, name: "token_endpoint_auth_method" });
+  const items = useWatch({ control, name: "allowed_cors_origins" });
+
+  // クロスフィールド validation (superRefine) で配列ルートに付くエラーは
+  // RHF の onChange が「変更されたリーフ」しか再検証しないため自動で消えない。
+  // 既にルートエラーが出ている間だけ、items / auth method の変更で trigger を呼んで掃除する。
+  useEffect(() => {
+    if (arrayError) void trigger("allowed_cors_origins");
+  }, [items, authMethod, arrayError, trigger]);
+
+  if (authMethod !== "none") return null;
+  return (
+    <Field
+      label="許可する Web Origin (CORS)"
+      hint="(必須: SPA から fetch する origin)"
+      error={arrayError}
+    >
+      <RepeatableInput
+        control={control}
+        name="allowed_cors_origins"
+        placeholder="https://app.example.com"
+        minRows={1}
+      />
+    </Field>
   );
 }
 
@@ -307,6 +408,37 @@ function ReadOnlyChipList({ values }: { values: readonly string[] }) {
         </span>
       ))}
     </div>
+  );
+}
+
+/**
+ * 認証方式 dropdown の現在値を react-hook-form の useWatch で監視し、許可スコープ / 認可フローを
+ * 表示用に動的にフィルタする。サーバ側 (computeAllowedScopesAndGrants) と同じロジックを UI に反映し、
+ * none 選択時は offline_access / refresh_token を「そもそも許可されない」として表示から除外する。
+ */
+function DerivedScopesAndGrants({
+  control,
+}: {
+  control: ReturnType<typeof useForm<ClientFormInput>>["control"];
+}) {
+  const authMethod = useWatch({ control, name: "token_endpoint_auth_method" });
+  const isPublic = authMethod === "none";
+  const displayedScopes = isPublic
+    ? SUPPORTED_SCOPES.filter((s) => s !== "offline_access")
+    : SUPPORTED_SCOPES;
+  const displayedGrantTypes = isPublic
+    ? GRANT_TYPES.filter((g) => g !== "refresh_token")
+    : GRANT_TYPES;
+
+  return (
+    <>
+      <Field label="許可するスコープ" hint="(認証方式により自動決定)">
+        <ReadOnlyChipList values={displayedScopes} />
+      </Field>
+      <Field label="許可する認可フロー" hint="(認証方式により自動決定)">
+        <ReadOnlyChipList values={displayedGrantTypes} />
+      </Field>
+    </>
   );
 }
 

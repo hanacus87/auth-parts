@@ -56,6 +56,7 @@ CREATE TABLE `clients` (
 	`allowed_grant_types` text DEFAULT '["authorization_code","refresh_token"]' NOT NULL,
 	`backchannel_logout_uri` text,
 	`post_logout_redirect_uris` text DEFAULT '[]' NOT NULL,
+	`allowed_cors_origins` text DEFAULT '[]' NOT NULL,
 	`created_by_admin_id` text,
 	`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL
 );

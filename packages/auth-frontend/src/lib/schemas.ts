@@ -61,22 +61,40 @@ const urlItem = z.object({ value: urlOrEmpty });
 /**
  * クライアント登録/編集フォームのスキーマ。
  * `redirect_uris` は「少なくとも 1 行は非空 URL」を要求し、空行自体は `urlOrEmpty` で許容する。
+ * 公開クライアント (`token_endpoint_auth_method=none`) のときだけ `allowed_cors_origins` の最低 1 件を
+ * superRefine で要求する (OAuth 2.0 BCP for Browser-Based Apps §6.2 に従い、SPA からの fetch には
+ * Origin 登録が必須)。confidential client は server-to-server で CORS 不要のため空のままで OK。
  */
-export const clientFormSchema = z.object({
-  name: z.string({ error: "クライアント名は必須です" }).trim().min(1, "クライアント名は必須です"),
+export const clientFormSchema = z
+  .object({
+    name: z.string({ error: "クライアント名は必須です" }).trim().min(1, "クライアント名は必須です"),
 
-  redirect_uris: z.array(urlItem).refine((arr) => arr.some((r) => r.value !== ""), {
-    message: "コールバック URL を 1 つ以上入力してください",
-  }),
+    redirect_uris: z.array(urlItem).refine((arr) => arr.some((r) => r.value !== ""), {
+      message: "コールバック URL を 1 つ以上入力してください",
+    }),
 
-  token_endpoint_auth_method: z.enum(TOKEN_ENDPOINT_AUTH_METHODS, {
-    error: "token_endpoint_auth_method の値が不正です",
-  }),
+    token_endpoint_auth_method: z.enum(TOKEN_ENDPOINT_AUTH_METHODS, {
+      error: "token_endpoint_auth_method の値が不正です",
+    }),
 
-  backchannel_logout_uri: urlOrEmpty,
+    backchannel_logout_uri: urlOrEmpty,
 
-  post_logout_redirect_uris: z.array(urlItem),
-});
+    post_logout_redirect_uris: z.array(urlItem),
+
+    allowed_cors_origins: z.array(urlItem),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.token_endpoint_auth_method === "none" &&
+      !data.allowed_cors_origins.some((o) => o.value !== "")
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["allowed_cors_origins"],
+        message: "公開クライアントでは Web Origin を 1 つ以上指定してください",
+      });
+    }
+  });
 
 export type ClientFormInput = z.infer<typeof clientFormSchema>;
 

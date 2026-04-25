@@ -8,32 +8,38 @@
 INSERT OR IGNORE INTO clients (
   id, secret, name,
   redirect_uris, allowed_scopes, token_endpoint_auth_method, allowed_grant_types,
-  backchannel_logout_uri, post_logout_redirect_uris, created_by_admin_id, created_at
+  backchannel_logout_uri, post_logout_redirect_uris, allowed_cors_origins,
+  created_by_admin_id, created_at
 ) VALUES (
   'bff-app', 'bff-app-secret', 'BFF App Server',
   '["http://localhost:3000/auth/callback"]',
   '["openid","profile","email","offline_access"]',
   'client_secret_basic',
   '["authorization_code","refresh_token"]',
-  'http://localhost:3000/auth/backchannel-logout',
-  '["http://localhost:3000/auth/post-logout"]',
+  NULL,
+  '["http://localhost:5173"]',
+  '[]',
   '01HSEEDADMINXXXXXXXXXXXXXXX',
   unixepoch() * 1000
 );
 
--- BFF App Server Sub
+-- Frontend SPA (public client)
+-- auth-container-react で SPA から直接 OIDC を実行する。
+-- BCP for Browser-Based Apps §6.2 に従い offline_access / refresh_token は許可しない。
 INSERT OR IGNORE INTO clients (
   id, secret, name,
   redirect_uris, allowed_scopes, token_endpoint_auth_method, allowed_grant_types,
-  backchannel_logout_uri, post_logout_redirect_uris, created_by_admin_id, created_at
+  backchannel_logout_uri, post_logout_redirect_uris, allowed_cors_origins,
+  created_by_admin_id, created_at
 ) VALUES (
-  'bff-sub', 'bff-sub-secret', 'BFF App Server Sub',
-  '["http://localhost:3001/auth/callback"]',
-  '["openid","profile","email","offline_access"]',
-  'client_secret_basic',
-  '["authorization_code","refresh_token"]',
-  'http://localhost:3001/auth/backchannel-logout',
-  '["http://localhost:3001/auth/post-logout"]',
+  'frontend-spa', NULL, 'Frontend SPA',
+  '["http://localhost:5174/callback"]',
+  '["openid","profile","email"]',
+  'none',
+  '["authorization_code"]',
+  NULL,
+  '["http://localhost:5174"]',
+  '["http://localhost:5174"]',
   '01HSEEDADMINXXXXXXXXXXXXXXX',
   unixepoch() * 1000
 );

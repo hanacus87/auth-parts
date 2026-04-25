@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import type { AppEnv } from "./types";
-import { createDb } from "./db";
+import { createDb, type DB } from "./db";
 import { discoveryRouter } from "./routes/discovery";
 import { jwksRouter } from "./routes/jwks";
 import { authorizeRouter } from "./routes/authorize";
@@ -18,16 +18,32 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-app.use("*", async (c, next) => {
-  if (c.env.ENVIRONMENT === "development") {
-    return cors({
-      origin: "http://localhost:5173",
-      allowMethods: ["GET", "POST", "OPTIONS"],
-      allowHeaders: ["Content-Type", "Authorization"],
-      credentials: true,
-    })(c, next);
+/**
+ * 全クライアントの allowed_cors_origins を D1 から集約して Set として返す。
+ *
+ * 確認時 (毎リクエスト) に findMany が走るが Cloudflare D1 の応答時間は数 ms 程度のため許容する。
+ * 必要になればメモリ / KV キャッシュを後付けする。
+ */
+async function loadAllowedCorsOrigins(db: DB): Promise<Set<string>> {
+  const rows = await db.query.clients.findMany({ columns: { allowedCorsOrigins: true } });
+  const set = new Set<string>();
+  for (const row of rows) {
+    for (const origin of row.allowedCorsOrigins) set.add(origin);
   }
-  await next();
+  return set;
+}
+
+app.use("*", async (c, next) => {
+  return cors({
+    origin: async (origin) => {
+      if (!origin) return null;
+      const allowed = await loadAllowedCorsOrigins(c.var.db);
+      return allowed.has(origin) ? origin : null;
+    },
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  })(c, next);
 });
 
 app.use(

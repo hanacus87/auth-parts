@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-// BFF パターン: コールバックは demo-bff が処理する。
-// このページはエラー時のみ demo-bff からリダイレクトされる。
+/**
+ * BFF パターン: 通常のコールバック処理は demo-bff が行うため、このページはエラー時のみ
+ * demo-bff からリダイレクトされる。`error` クエリがあればメッセージとして表示し、
+ * URL からエラーパラメータを除去する。エラーパラメータ無しで直接アクセスされた場合はホームへ戻す。
+ */
 export function Callback() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
@@ -13,10 +16,8 @@ export function Callback() {
     if (err) {
       const desc = params.get("error_description") ?? err;
       setError(desc);
-      // URL からエラーパラメータを除去
       window.history.replaceState({}, "", window.location.pathname);
     } else {
-      // エラーパラメータなしで直接アクセスされた場合はホームへ
       navigate("/");
     }
   }, [navigate]);
@@ -33,11 +34,5 @@ export function Callback() {
     );
   }
 
-  return (
-    <div
-      style={{ fontFamily: "sans-serif", maxWidth: 400, margin: "80px auto", padding: "0 16px" }}
-    >
-      <p>Processing login...</p>
-    </div>
-  );
+  return <div>Processing login...</div>;
 }

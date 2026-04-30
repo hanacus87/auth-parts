@@ -1,24 +1,42 @@
 # OIDC Scratch Implementation
 
-OpenID Connect Authorization Code Flow + PKCE をフルスクラッチで実装し、仕様を理解するための学習プロジェクト。
-**BFF パターン**と **SPA 直結 (PKCE)** の 2 種類のクライアントから同じ OP を叩くことで、SSO の挙動とセキュリティ責務の違いを比較できる。
+OpenID Connect Authorization Code Flow + PKCE をフルスクラッチで実装した学習用モノレポ。
+**OP 本体・BFF パターン・SPA 直結パターン**を 1 リポジトリに揃え、同じ OP に対する 2 種類の RP (Relying Party) の挙動とセキュリティ責務を比較できる構成にしている。
 
-- **demo-frontend-bff** (port 5173) → **demo-bff** (Bun) → auth-container
-  - confidential client + JWE Cookie ステートレスセッション (`@auth-parts/auth-container-client`)
-- **demo-frontend-spa** (port 5174) → 直接 auth-container
-  - public client + PKCE / BCP for Browser-Based Apps (`@auth-parts/auth-container-react`)
+## 何を作ったか
 
-OP 本体 (auth-container) は Cloudflare Workers + D1、UI は Vite + React SPA + Tailwind v4。
-学習目的のスクラッチ実装ながら、PBKDF2 によるパスワード保護・JWT 鍵の月次自動ローテ・KV ベースのレート制限・per-client CORS を備える。
+- **OP 本体** (`auth-container`) — Cloudflare Workers + D1 + KV。`/.well-known/openid-configuration` から `/token` `/userinfo` まで OIDC Core 1.0 を一通り実装。Login / Consent / Register / Logout / Admin SPA を Static Assets バインディングで同梱
+- **BFF パターン** — confidential client + JWE Cookie ステートレスセッション (`@auth-parts/auth-container-client`)
+- **SPA 直結パターン** — public client + PKCE / メモリトークンのみ + top-level silent renew (`@auth-parts/auth-container-react`)
+- **2 つのデモ SPA** で同じ OP を叩き、SSO の挙動と RP 側のセキュリティ責務の違いを動かして比較できる
+
+## なぜスクラッチで書いたか
+
+- **仕様の暗黙挙動を実装で具体化する**: ライブラリ任せだと `redirect_uri` 厳密一致の境界・PKCE verifier 検証順・JWKS のキャッシュとローテ整合といった「使う側だと意識せず通り過ぎる」部分の判断が手元に残らない
+- **BFF パターンと SPA 直結を同じコードベースで比較**: BCP for Browser-Based Apps が推す BFF と、現実的に多い SPA 直結の責務分担を、同じ OP に対して両方実装することで差分をコードレベルで対比できる形に残す
+- **Cloudflare Workers + D1 + KV の制約下での設計**: PBKDF2 iterations 上限 100k、KV の eventual consistency、Static Assets バインディングなど、エッジ環境ならではの制約に対する設計判断を記録する
+
+## 設計上のハイライト
+
+| 判断                | 採用                                                                | 不採用                      | なぜ                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| パスワードハッシュ  | PBKDF2-SHA256 / 100k iter                                           | bcrypt / Argon2id           | Workers の Web Crypto は iter 上限 100k。WASM 依存ゼロで純 Web Crypto に閉じる選択。OWASP 推奨 (600k) には届かないが、ユーザー不在時もダミーハッシュで PBKDF2 を実行して列挙対策を行う |
+| JWT 鍵の更新        | 月次 Cron で自動ローテ + `active` / `deprecated` / `retired` 三段階 | 永続鍵 / 手動ローテのみ     | 既発行トークンの検証期間を担保するグレースピリオド設計。失敗時も次回 Cron で冪等にリカバリ                                                                                             |
+| SPA の silent renew | top-level redirect (`prompt=none`)                                  | hidden iframe + postMessage | 3rd-party cookie 制限 (Safari ITP / Chrome CHIPS) を構造的に回避。画面が一瞬白くなるが、`isLoading` 中の loader 表示で目立たなくする                                                   |
+| BFF セッション      | JWE Cookie (`dir` + `A256GCM`)                                      | Redis / DB セッション       | サーバ側を stateless にしてインフラ依存を最小化。トレードオフとして Back-Channel Logout は原理的に不可と明記                                                                           |
+| CORS ポリシー       | per-client `allowedCorsOrigins` + URL 厳密一致                      | グローバル CORS 設定        | public client ごとに最低 1 件登録必須にし、URL ポリシー (`redirect_uri` 厳密一致・フラグメント禁止・`https` 必須) と多層防御                                                           |
+| マイグレーション    | `drizzle/schema.sql` 一本 (DROP IF EXISTS → CREATE)                 | Drizzle Kit 連番 migration  | 学習プロジェクトでデータ保持責務を負わない前提。将来データ保持が必要になったとき連番運用へ切り替える方針として残す                                                                     |
+
+詳細は [セキュリティ実装](#セキュリティ実装) と [運用](#運用) を参照。
 
 ---
 
 ## 目次
 
-1. [クイックスタート](#クイックスタート)
-2. [動作確認シナリオ](#動作確認シナリオ)
-3. [アーキテクチャ](#アーキテクチャ)
-4. [BFF と SPA 直結の比較](#bff-と-spa-直結の比較)
+1. [アーキテクチャ](#アーキテクチャ)
+2. [BFF と SPA 直結の比較](#bff-と-spa-直結の比較)
+3. [クイックスタート](#クイックスタート)
+4. [動作確認シナリオ](#動作確認シナリオ)
 5. [技術スタック](#技術スタック)
 6. [エンドポイント](#エンドポイント)
 7. [セキュリティ実装](#セキュリティ実装)
@@ -26,73 +44,8 @@ OP 本体 (auth-container) は Cloudflare Workers + D1、UI は Vite + React SPA
 9. [運用](#運用)
 10. [デプロイと CI](#デプロイと-ci)
 11. [開発スクリプト](#開発スクリプト)
-12. [バージョン](#バージョン)
+12. [制約と将来計画](#制約と将来計画)
 13. [参照仕様](#参照仕様)
-
----
-
-## クイックスタート
-
-### 前提
-
-- [Bun](https://bun.sh/) v1.1+
-- [pnpm](https://pnpm.io/) v10+
-- Node.js 24+ (ライブラリ群の `engines` 要件)
-- Wrangler は `pnpm install` で同梱される
-
-### 手順
-
-```bash
-# 1. 依存パッケージ
-pnpm install
-
-# 2. 各 .env / .dev.vars をコピー
-cp packages/auth-container/.dev.vars.example packages/auth-container/.dev.vars
-cp packages/demo-bff/.env.example packages/demo-bff/.env
-cp packages/demo-frontend-bff/.env.example packages/demo-frontend-bff/.env
-cp packages/demo-frontend-spa/.env.example packages/demo-frontend-spa/.env
-
-# 3. demo-bff の JWE Cookie 鍵 (32 byte base64) を生成し COOKIE_KEYS に貼る
-openssl rand -base64 32
-
-# 4. ローカル D1 をスキーマ初期化 + シード投入
-pnpm db:reset:local   # drizzle/schema.sql を適用 (DROP IF EXISTS → CREATE。既存データは消える)
-pnpm db:seed:local    # drizzle/seed.sql で client / 管理者 / テストユーザーを INSERT
-
-# 5. 5 ターミナルで起動
-pnpm dev:auth-frontend   # Vite watch ビルド → auth-container/dist-assets
-pnpm dev:auth            # Wrangler dev :4000
-pnpm dev:bff             # Bun BFF :3000
-pnpm dev:frontend-bff    # Vite :5173 (BFF パターン)
-pnpm dev:frontend-spa    # Vite :5174 (SPA 直結)
-```
-
-> ライブラリ `@auth-parts/auth-container-client` は `ISSUER` を `https://auth-container.hanacus87.net` に固定して埋め込んでいる。
-> ローカルの `localhost:4000` を使いたい場合は hosts ファイルや DNS で同ドメインをローカル向けに解決させる運用を採る (ライブラリ側に dev エンドポイントを設けない方針)。
-
-### シード初期値
-
-| 種別          | email                    | password    | 備考                                                                              |
-| ------------- | ------------------------ | ----------- | --------------------------------------------------------------------------------- |
-| 一般ユーザー  | test@example.com         | password123 | email 確認済み                                                                    |
-| 管理者        | admin@example.com        | admin123    | role=`super` (SuperAdmin)                                                         |
-| Confidential  | client_id=`bff-app`      | secret あり | redirect_uri=`http://localhost:3000/auth/callback`                                |
-| Public (PKCE) | client_id=`frontend-spa` | (none)      | redirect_uri=`http://localhost:5174/callback`、CORS 許可: `http://localhost:5174` |
-
----
-
-## 動作確認シナリオ
-
-1. `http://localhost:5173` (BFF) → Login → ログイン画面 → 同意 → Dashboard
-2. `http://localhost:5174` (SPA 直結) → 起動時に top-level redirect で `/authorize?prompt=none` を試行
-   - 1 で既ログインなら一瞬リダイレクトして即 Dashboard (SSO 成立)
-   - 未ログインなら `error=login_required` で戻り Login ボタン表示
-3. SPA 直結で Login → 通常の `/authorize` → ログイン → 同意 → Dashboard
-4. SPA 直結で Logout → `/logout` (RP-Initiated) → 確認画面 → ホームへ
-5. `http://localhost:4000/admin/login` で管理画面 (`admin@example.com` / `admin123`) → ユーザー / クライアント / 管理者 / 鍵 の CRUD
-6. 新規クライアント作成時、`token_endpoint_auth_method=none` に切り替えると `offline_access` / `refresh_token` チップが表示から消える (UI の整合)
-7. DevTools で `bff_session` / `op_session` / `admin_session` が HttpOnly。SPA 直結では `localStorage` / `sessionStorage` に access_token / id_token が **保存されていない** こと
-8. SPA 直結でリロード → top-level silent renew でログイン状態が即復元
 
 ---
 
@@ -175,38 +128,99 @@ oidc-scratch/
 
 ## BFF と SPA 直結の比較
 
-| 観点                   | BFF パターン (`demo-bff` 経由)                               | SPA 直結 (`demo-frontend-spa`)                    |
-| ---------------------- | ------------------------------------------------------------ | ------------------------------------------------- |
-| クライアント種別       | confidential (`client_secret_basic`)                         | public (`token_endpoint_auth_method=none`)        |
-| トークン保管           | サーバ側 (BFF メモリ)。ブラウザには出さない                  | ブラウザの **JS メモリのみ** (storage 不使用)     |
-| ブラウザのセッション   | `bff_session` JWE Cookie (HttpOnly / dir+A256GCM)            | `op_session` (OP 側) のみ。RP に独自 session 無し |
-| Refresh Token          | OP が許可 (offline_access scope)                             | **発行禁止** (BCP 212 §6.2 準拠)                  |
-| リロード時の再ログイン | Cookie で復元                                                | top-level redirect で `prompt=none` silent renew  |
-| RP-Initiated Logout    | Cookie 破棄のみ                                              | `/logout` 経由で OP セッションも切る              |
-| Back-Channel Logout    | 非対応 (ステートレス設計上、原理的に成立不可)                | 非対応                                            |
-| 想定読者の学習ポイント | サーバ側でトークンを安全に管理する古典的なベストプラクティス | BCP for Browser-Based Apps の現実的な実装例       |
+| 観点                   | BFF パターン (`demo-bff` 経由)                    | SPA 直結 (`demo-frontend-spa`)                    |
+| ---------------------- | ------------------------------------------------- | ------------------------------------------------- |
+| クライアント種別       | confidential (`client_secret_basic`)              | public (`token_endpoint_auth_method=none`)        |
+| トークン保管           | サーバ側 (BFF メモリ)。ブラウザには出さない       | ブラウザの **JS メモリのみ** (storage 不使用)     |
+| ブラウザのセッション   | `bff_session` JWE Cookie (HttpOnly / dir+A256GCM) | `op_session` (OP 側) のみ。RP に独自 session 無し |
+| Refresh Token          | OP が許可 (`offline_access` scope)                | **発行禁止** (BCP 212 §6.2 準拠)                  |
+| リロード時の再ログイン | Cookie で復元                                     | top-level redirect で `prompt=none` silent renew  |
+| RP-Initiated Logout    | Cookie 破棄のみ                                   | `/logout` 経由で OP セッションも切る              |
+| Back-Channel Logout    | 非対応 (ステートレス設計上、原理的に不可)         | 非対応 (SPA は BCL endpoint を持てない)           |
+
+---
+
+## クイックスタート
+
+### 前提
+
+- [Bun](https://bun.sh/) v1.1+
+- [pnpm](https://pnpm.io/) v10+
+- Node.js 24+ (ライブラリ群の `engines` 要件)
+- Wrangler は `pnpm install` で同梱される
+
+### 手順
+
+```bash
+# 1. 依存パッケージ
+pnpm install
+
+# 2. 各 .env / .dev.vars をコピー
+cp packages/auth-container/.dev.vars.example packages/auth-container/.dev.vars
+cp packages/demo-bff/.env.example packages/demo-bff/.env
+cp packages/demo-frontend-bff/.env.example packages/demo-frontend-bff/.env
+cp packages/demo-frontend-spa/.env.example packages/demo-frontend-spa/.env
+
+# 3. demo-bff の JWE Cookie 鍵 (32 byte base64) を生成し COOKIE_KEYS に貼る
+openssl rand -base64 32
+
+# 4. ローカル D1 をスキーマ初期化 + シード投入
+pnpm db:reset:local   # drizzle/schema.sql を適用 (DROP IF EXISTS → CREATE。既存データは消える)
+pnpm db:seed:local    # drizzle/seed.sql で client / 管理者 / テストユーザーを INSERT
+
+# 5. 5 ターミナルで起動
+pnpm dev:auth-frontend   # Vite watch ビルド → auth-container/dist-assets
+pnpm dev:auth            # Wrangler dev :4000
+pnpm dev:bff             # Bun BFF :3000
+pnpm dev:frontend-bff    # Vite :5173 (BFF パターン)
+pnpm dev:frontend-spa    # Vite :5174 (SPA 直結)
+```
+
+### シード初期値
+
+| 種別          | email                    | password    | 備考                                                                              |
+| ------------- | ------------------------ | ----------- | --------------------------------------------------------------------------------- |
+| 一般ユーザー  | test@example.com         | password123 | email 確認済み                                                                    |
+| 管理者        | admin@example.com        | admin123    | role=`super` (SuperAdmin)                                                         |
+| Confidential  | client_id=`bff-app`      | secret あり | redirect_uri=`http://localhost:3000/auth/callback`                                |
+| Public (PKCE) | client_id=`frontend-spa` | (none)      | redirect_uri=`http://localhost:5174/callback`、CORS 許可: `http://localhost:5174` |
+
+---
+
+## 動作確認シナリオ
+
+1. `http://localhost:5173` (BFF) → Login → ログイン画面 → 同意 → Dashboard
+2. `http://localhost:5174` (SPA 直結) → 起動時に top-level redirect で `/authorize?prompt=none` を試行
+   - 1 で既ログインなら一瞬リダイレクトして即 Dashboard (SSO 成立)
+   - 未ログインなら `error=login_required` で戻り Login ボタン表示
+3. SPA 直結で Login → 通常の `/authorize` → ログイン → 同意 → Dashboard
+4. SPA 直結で Logout → `/logout` (RP-Initiated) → 確認画面 → ホームへ
+5. `http://localhost:4000/admin/login` で管理画面 (`admin@example.com` / `admin123`) → ユーザー / クライアント / 管理者 / 鍵 の CRUD
+6. 新規クライアント作成時、`token_endpoint_auth_method=none` に切り替えると `offline_access` / `refresh_token` チップが表示から消える (UI の整合)
+7. DevTools で `bff_session` / `op_session` / `admin_session` が HttpOnly。SPA 直結では `localStorage` / `sessionStorage` に access_token / id_token が **保存されていない** こと
+8. SPA 直結でリロード → top-level silent renew でログイン状態が即復元
 
 ---
 
 ## 技術スタック
 
-| 項目                    | 採用技術                                                                            |
-| ----------------------- | ----------------------------------------------------------------------------------- |
-| auth-container 実行環境 | Cloudflare Workers (compatibility_date `2025-04-01`)                                |
-| auth-container DB       | Cloudflare D1 (SQLite)                                                              |
-| auth-container UI       | Vite + React 18 + Tailwind v4                                                       |
-| BFF 実行環境            | Bun                                                                                 |
-| Web フレームワーク      | Hono v4                                                                             |
-| フロントエンド          | Vite + React 18                                                                     |
-| JWT / JWE               | jose v5                                                                             |
-| ORM                     | Drizzle ORM v0.36                                                                   |
-| バリデーション          | Zod v4                                                                              |
-| パスワードハッシュ      | **PBKDF2-SHA256 / 100,000 iter / Web Crypto API**、列挙対策のタイミング攻撃緩和つき |
-| BFF セッション          | JWE Cookie (`dir` + `A256GCM`)。`@auth-parts/auth-container-client` に集約          |
-| SPA 直結 OIDC           | Authorization Code + PKCE / メモリ token / top-level silent renew                   |
-| メール配信              | Resend HTTP API (`lib/email.ts`)                                                    |
-| ライブラリビルド        | tsup (CJS + ESM デュアル出力)                                                       |
-| パッケージ管理          | pnpm workspaces                                                                     |
+| 項目                    | 採用技術                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| auth-container 実行環境 | Cloudflare Workers (compatibility_date `2025-04-01`)                            |
+| auth-container DB       | Cloudflare D1 (SQLite)                                                          |
+| auth-container UI       | Vite + React 18 + Tailwind v4                                                   |
+| BFF 実行環境            | Bun                                                                             |
+| Web フレームワーク      | Hono v4                                                                         |
+| フロントエンド          | Vite + React 18                                                                 |
+| JWT / JWE               | jose v5                                                                         |
+| ORM                     | Drizzle ORM v0.36                                                               |
+| バリデーション          | Zod v4                                                                          |
+| パスワードハッシュ      | PBKDF2-SHA256 / 100,000 iter / Web Crypto API、列挙対策のタイミング攻撃緩和つき |
+| BFF セッション          | JWE Cookie (`dir` + `A256GCM`)。`@auth-parts/auth-container-client` に集約      |
+| SPA 直結 OIDC           | Authorization Code + PKCE / メモリ token / top-level silent renew               |
+| メール配信              | Resend HTTP API (`lib/email.ts`)                                                |
+| ライブラリビルド        | tsup (CJS + ESM デュアル出力)                                                   |
+| パッケージ管理          | pnpm workspaces                                                                 |
 
 ---
 
@@ -274,7 +288,7 @@ oidc-scratch/
 
 ## セキュリティ実装
 
-スクラッチ実装の中心はこの章。各機能はファイルに対応するので、コードと往復しながら読むのが想定。
+本リポジトリのセキュリティ対策の主要部分をこの章にまとめる。各機能は実装ファイルと対応付けて記述している。
 
 | 機能               | モジュール                          | 主な適用箇所                                          |
 | ------------------ | ----------------------------------- | ----------------------------------------------------- |
@@ -295,7 +309,7 @@ PBKDF2-SHA256 / 100,000 iterations / 16 byte salt / 256 bit 派生鍵。Cloudfla
 
 `verifyPasswordConstantTime` はユーザーが存在しない場合もキャッシュしたダミーハッシュに対して PBKDF2 を走らせ、応答時間によるユーザー列挙を阻止する。比較は `safe-equal.ts` の constant-time compare。
 
-bcrypt ではなく PBKDF2 を採ったのは Workers の純 Web Crypto 環境を活かすため (依存ゼロ・WASM 不要)。
+bcrypt ではなく PBKDF2 を採用したのは、Workers の Web Crypto API のみで完結させるため (npm 追加依存なし、WASM ロード不要)。
 
 ### JWT 鍵自動ローテーション
 
@@ -313,7 +327,7 @@ stateDiagram-v2
 - **deprecated**: 既発行トークンの検証用に JWKS から配信し続ける (グレースピリオド)
 - **retired**: JWKS にも検証にも露出しない
 
-グレースピリオド 7 日は ID Token TTL + JWKS `Cache-Control: max-age=3600` に対する十分なマージン。失敗時も次回の Cron 発火で冪等にリカバリされる設計。`POST /api/admin/keys/rotate` で SuperAdmin が手動発火可能 (Cron が無いローカル環境向け)。
+グレースピリオド 7 日は ID Token TTL (1 時間) + JWKS Cache-Control max-age (1 時間) を十分上回る期間。失敗時も次回の Cron 発火で冪等にリカバリされる設計。`POST /api/admin/keys/rotate` で SuperAdmin が手動発火可能 (Cron が無いローカル環境向け)。
 
 ### レート制限
 
@@ -369,9 +383,9 @@ stateDiagram-v2
 
 - 学習プロジェクトであり、本番でもデータ保持の責務を負っていない
 - ローカルも本番も `db:reset:remote` / `db:reset:local` で初期化前提
-- スキーマ差分管理に Drizzle Kit を導入する複雑度を、現時点では割に合わないと判断
+- スキーマ差分管理に Drizzle Kit を導入する複雑度に対して、得られるメリットが小さいため見送り
 
-将来データ保持責務を持たせる必要が出たら、Drizzle Kit の `db:generate` で migration を切る運用に切り替える (TODO)。
+将来データ保持責務を持たせる必要が出たら、Drizzle Kit の `db:generate` で migration を切る運用に切り替える ([制約と将来計画](#制約と将来計画) 参照)。
 
 ---
 
@@ -412,7 +426,7 @@ demo-bff / demo-frontend-\* 側の `.env.example` も併せて参照。
 - パスワードリセット (一般 / 管理者)
 - 管理者招待 (`POST /api/admin/admins` で reset token を兼ねた招待 URL を発行)
 
-`RESEND_API_KEY` が未設定だと送信が失敗するので、ローカル開発でメール系をテストする場合は実 API キー or ダミー fetch を仕込む必要がある。
+`RESEND_API_KEY` が未設定だと送信が失敗するので、ローカル開発でメール系をテストする場合は実 API キー or ダミー fetch を設定する必要がある。
 
 ### 鍵ローテーション手動操作
 
@@ -496,20 +510,21 @@ pnpm --filter @auth-parts/auth-container-react  build
 
 ---
 
-## バージョン
+## 制約と将来計画
 
-| パッケージ                          | version |
-| ----------------------------------- | ------- |
-| ルート (`oidc-scratch`)             | 0.0.1   |
-| `auth-container`                    | 0.0.1   |
-| `auth-frontend`                     | 0.0.1   |
-| `@auth-parts/auth-container-client` | 0.1.0   |
-| `@auth-parts/auth-container-react`  | 0.1.0   |
-| `@auth-parts/demo-bff`              | 0.0.1   |
-| `@auth-parts/demo-frontend-bff`     | 0.0.1   |
-| `@auth-parts/demo-frontend-spa`     | 0.0.1   |
+現状で**できないこと・あえてやっていないこと**を以下に列挙する。
 
-現状は RP-Initiated Logout を SPA 直結のみ実装済み。Back-Channel Logout は未実装 (BFF パターンの JWE Cookie ステートレス設計とは原理的に共存しないため、実装する場合は RP 側を stateful 化する必要がある)。
+### 仕様面
+
+- **Back-Channel Logout**: BFF パターンの JWE Cookie ステートレス設計とは原理的に共存しない。SPA 直結も BCL endpoint を持てないため未対応。実装するなら RP 側を stateful 化し、別途セッション破棄機構を持たせる必要がある
+- **多タブ logout sync (SPA 直結)**: 1 タブで logout しても他タブは memory token を持ち続ける。リロード時の silent renew で OP セッションが切れていれば未ログインに同期されるため、最悪のケースでも token TTL ぶんで自然消滅
+- **silent renew は起動時 1 回のみ (SPA 直結)**: access_token 期限切れ後の自動延長はせず、利用側で `login()` を再度呼ぶ前提
+
+### 環境面
+
+- **`@auth-parts/auth-container-*` は OP の URL を固定埋め込み**: ライブラリは `ISSUER=https://auth-container.hanacus87.net` 前提。ローカルで `localhost:4000` を使う場合は hosts ファイル等で同ドメインをローカル解決する。ステージングや別 OP 接続には対応しない (他環境でも使えるようにする場合は ISSUER を config 化してバージョン bump)
+- **PBKDF2 100k iter**: Workers の Web Crypto 上限。本番運用するなら Argon2id (WASM) への移行を検討
+- **schema.sql 一本主義**: 本番でもデータ保持責務を負わない前提。データ保持が必要になったら Drizzle Kit 連番 migration へ切り替える
 
 ---
 

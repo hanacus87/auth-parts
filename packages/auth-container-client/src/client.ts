@@ -35,7 +35,6 @@ export class AuthContainerClient {
    */
   async startLogin(
     input: {
-      returnTo?: string;
       extraAuthorizeParams?: Record<string, string>;
     } = {},
   ): Promise<{ authorizeUrl: string; setCookies: SetCookieDirective[] }> {
@@ -71,9 +70,13 @@ export class AuthContainerClient {
    * RFC 6750 §2 / OIDC Core §5.3: access_token を Bearer で渡して /userinfo を取得する。
    * 401 (= revoked / invalid token) と 5xx 等を区別した Result 型で返す。
    * 利用側は ok=false かつ reason=unauthorized を「セッション失効」として扱える。
+   *
+   * OIDC Core §5.3.2: response の sub と id_token の sub の一致を MUST で検証する (token mix-up 対策)。
+   * `expectedSub` は session 由来の sub (e.g. honoSessionMiddleware の `c.var.user.sub`) を渡す。
+   * 不一致は reason='sub_mismatch' で返るので、unauthorized と同様にセッション失効として扱う想定。
    */
-  async fetchUserInfo(accessToken: string): Promise<UserInfoResult> {
-    return fetchUserInfo(this.#config, accessToken);
+  async fetchUserInfo(accessToken: string, expectedSub: string): Promise<UserInfoResult> {
+    return fetchUserInfo(this.#config, accessToken, expectedSub);
   }
 
   /**
@@ -111,7 +114,7 @@ export class AuthContainerClient {
  * - NODE_ENV=production 時に redirectUri が http:// だと誤設定なので throw する
  * - cookies.sessionName 省略時は constants.COOKIES.session.name (`bff_session`) を使う。
  *   同一オリジンに複数 BFF を同居させる場合や既存運用名を維持したい場合に上書きする
- * - fetch / clock 省略時は globalThis.fetch と (Date.now() / 1000) を注入する
+ * - fetch / clock は内部 DI として ResolvedConfig に常設するが、公開 API では差し替えを許可しない
  */
 function resolveConfig(opts: ClientUserConfig): ResolvedConfig {
   if (!opts.encryptionKeys || opts.encryptionKeys.length === 0) {
@@ -145,8 +148,8 @@ function resolveConfig(opts: ClientUserConfig): ResolvedConfig {
     redirectUri: opts.redirectUri,
     encryptionKeys: opts.encryptionKeys,
     sessionCookieName: opts.cookies?.sessionName ?? COOKIES.session.name,
-    fetch: opts.fetch ?? globalThis.fetch,
-    clock: opts.clock ?? (() => Math.floor(Date.now() / 1000)),
+    fetch: globalThis.fetch,
+    clock: () => Math.floor(Date.now() / 1000),
   };
 }
 

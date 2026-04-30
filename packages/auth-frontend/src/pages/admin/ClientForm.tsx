@@ -47,6 +47,11 @@ interface ClientDetail {
  * OIDC クライアントの新規作成 / 編集フォーム (mode で切替)。
  * 作成時に発行される client_secret、および auth_method 変更 / rotate-secret による新 secret は
  * `SecretDisplay` で 1 度だけ表示する。空欄の redirect_uris 行はサーバに送らずクライアントで除去する。
+ *
+ * `redirect_uris` のような配列ルートに付くエラー (`.refine` で生まれる「1 つ以上」など) は
+ * RHF の onChange (リーフのみ再検証) では消えないため、`useWatch` で配列の変化を見て
+ * ルートエラーが出ている間だけ `trigger("redirect_uris")` を明示的に呼んで掃除する。
+ * `CorsOriginsField` でも同じパターンを採用している。
  */
 export function ClientForm({ mode }: Props) {
   const { csrfToken } = useAdminSession();
@@ -84,9 +89,6 @@ export function ClientForm({ mode }: Props) {
     },
   });
 
-  // 配列ルート ( `.refine` で付く redirect_uris の "1 つ以上" エラー ) は
-  // RHF の onChange (リーフのみ再検証) では消えないため、items の変化を契機に明示的に trigger する。
-  // `CorsOriginsField` 内でも同様の対処をしている。
   const redirectUris = useWatch({ control, name: "redirect_uris" });
   const redirectUrisError = errors.redirect_uris?.root?.message ?? errors.redirect_uris?.message;
   useEffect(() => {
@@ -358,6 +360,10 @@ function RotateSecretSection({
  * redirect_uri とは独立にSPA から fetch する origin を明示する。
  * confidential client (BFF) では server-to-server 通信のため
  * CORS は無関係なので欄ごと出さない。
+ *
+ * superRefine で配列ルートに付くクロスフィールドエラーは RHF の onChange (リーフのみ再検証) では
+ * 自動で消えないため、ルートエラーが出ている間だけ items / auth method の変化を契機に
+ * `trigger("allowed_cors_origins")` を呼んで掃除する。
  */
 function CorsOriginsField({
   control,
@@ -371,9 +377,6 @@ function CorsOriginsField({
   const authMethod = useWatch({ control, name: "token_endpoint_auth_method" });
   const items = useWatch({ control, name: "allowed_cors_origins" });
 
-  // クロスフィールド validation (superRefine) で配列ルートに付くエラーは
-  // RHF の onChange が「変更されたリーフ」しか再検証しないため自動で消えない。
-  // 既にルートエラーが出ている間だけ、items / auth method の変更で trigger を呼んで掃除する。
   useEffect(() => {
     if (arrayError) void trigger("allowed_cors_origins");
   }, [items, authMethod, arrayError, trigger]);

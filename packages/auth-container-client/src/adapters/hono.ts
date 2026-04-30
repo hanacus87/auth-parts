@@ -42,8 +42,7 @@ export function createHonoOidcRoutes(
    * Set-Cookie: oauth_pending=<JWE> を付けて返す。
    */
   app.get(loginPath, async (c) => {
-    const returnTo = c.req.query("returnTo");
-    const { authorizeUrl, setCookies } = await client.startLogin({ returnTo });
+    const { authorizeUrl, setCookies } = await client.startLogin();
     applySetCookies(c, setCookies);
     return c.redirect(authorizeUrl);
   });

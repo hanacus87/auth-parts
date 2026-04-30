@@ -8,7 +8,6 @@ export interface PendingAuthPayload {
   s: string;
   v: string;
   n: string;
-  r?: string;
   iat: number;
 }
 
@@ -39,9 +38,9 @@ function isSecure(config: ResolvedConfig): boolean {
 }
 
 /**
- * Pending Auth ({ state, codeVerifier, nonce, returnTo, iat } の短縮キー JSON) を encryptionKeys[0] で
+ * Pending Auth ({ state, codeVerifier, nonce, iat } の短縮キー JSON) を encryptionKeys[0] で
  * JWE 暗号化して Set-Cookie ディレクティブを返す。RFC 6265 実装互換の 3800 byte を超えたら
- * CookieSizeError を投げて早期に誤設定を検出する (returnTo の異常な長さ等)。
+ * CookieSizeError を投げて早期に誤設定を検出する。
  */
 export async function buildPendingCookie(
   payload: PendingAuthPayload,

@@ -137,6 +137,11 @@ async function authenticateClient(
  * `grant_type=authorization_code` を処理する (RFC 6749 §4.1.3, RFC 7636 §4.6, OIDC Core §3.1.3)。
  * 認可コードは single-use 条件付き UPDATE で TOCTOU race を排除し、再利用検知時は同 family の
  * access/refresh トークンを全 revoke する (RFC 6749 §4.1.2 最終段落に準拠)。
+ *
+ * refresh_token は OAuth 2.0 BCP for Browser-Based Apps §6.2 に従い、公開クライアント
+ * (token_endpoint_auth_method=none) には発行しない。admin API 側で allowed_scopes から
+ * offline_access を除外する一次防御 (computeAllowedScopesAndGrants) があるが、DB 直編集や
+ * 移行漏れに備えた runtime での二次防御として token endpoint 側でも auth method を確認する。
  */
 async function handleAuthorizationCodeGrant(
   c: AppContext,
@@ -244,9 +249,6 @@ async function handleAuthorizationCodeGrant(
     sid: authCode.sessionId ?? undefined,
   });
 
-  // OAuth 2.0 BCP for Browser-Based Apps §6.2: 公開クライアント (token_endpoint_auth_method=none) には
-  // refresh_token を発行しない。admin API 側で allowed_scopes から offline_access を除外する一次防御
-  // (computeAllowedScopesAndGrants) があるが、DB 直編集や移行漏れに備えた runtime での二次防御。
   let refreshToken: string | undefined;
   if (authCode.scopes.includes("offline_access") && client.tokenEndpointAuthMethod !== "none") {
     refreshToken = generateRandomString(32);
@@ -280,6 +282,10 @@ async function handleAuthorizationCodeGrant(
  * `grant_type=refresh_token` を処理する (RFC 6749 §6, RFC 9700 §4.14, OIDC Core §12.1-12.2)。
  * 失効済みトークンが提示された場合は rotation breach として同 family の全トークンと
  * OP セッションを revoke し、ブラウザに再認証を強制する。
+ *
+ * 公開クライアント (token_endpoint_auth_method=none) からの refresh_token grant は
+ * OAuth 2.0 BCP for Browser-Based Apps §6.2 に従い拒否する。`allowed_grant_types` チェックで
+ * 通常は弾かれるが、データ移行漏れ等に備えて auth method 側でも runtime で二重に防御する。
  */
 async function handleRefreshTokenGrant(
   c: AppContext,
@@ -303,8 +309,6 @@ async function handleRefreshTokenGrant(
     return tokenError(c, "unauthorized_client", "Client is not allowed to use refresh_token grant");
   }
 
-  // OAuth 2.0 BCP for Browser-Based Apps §6.2: 公開クライアントへの refresh_token を runtime で
-  // 二重に拒否する。allowed_grant_types チェックで通常は弾かれるが、データ移行漏れ等への防御。
   if (client.tokenEndpointAuthMethod === "none") {
     return tokenError(c, "unauthorized_client", "Public clients cannot use refresh_token grant");
   }

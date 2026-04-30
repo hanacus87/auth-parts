@@ -13,7 +13,6 @@ import type { ResolvedConfig, SetCookieDirective } from "../types";
 export async function startLogin(
   config: ResolvedConfig,
   input: {
-    returnTo?: string;
     extraAuthorizeParams?: Record<string, string>;
   },
 ): Promise<{ authorizeUrl: string; setCookies: SetCookieDirective[] }> {
@@ -43,7 +42,6 @@ export async function startLogin(
       s: state,
       v: codeVerifier,
       n: nonce,
-      r: input.returnTo,
       iat: config.clock(),
     },
     config,

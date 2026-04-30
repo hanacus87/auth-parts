@@ -12,12 +12,21 @@ export function savePending(pending: PendingAuth): void {
 
 /**
  * callback ページでの取り出し用。state 検証後に必ず clearPending を呼んで単回使用を強制する。
+ * `createdAt` から `maxAgeMs` を超過した pending は強制破棄する (タブを長期放置した古い
+ * state/nonce/codeVerifier を使い回さない目的)。既定 10 分は OP 側 authorization code TTL
+ * および BFF 版 `oauth_pending` Cookie の `maxAge: 600` と一致。
  */
-export function loadPending(): PendingAuth | null {
+export function loadPending(maxAgeMs: number = 600_000): PendingAuth | null {
   const raw = sessionStorage.getItem(PENDING_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as PendingAuth;
+    const p = JSON.parse(raw) as PendingAuth;
+    if (typeof p.createdAt !== "number") return null;
+    if (Date.now() - p.createdAt > maxAgeMs) {
+      sessionStorage.removeItem(PENDING_KEY);
+      return null;
+    }
+    return p;
   } catch {
     return null;
   }

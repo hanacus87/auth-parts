@@ -67,9 +67,15 @@ app.route(
 
 const api = new Hono<{ Variables: HonoOidcVariables }>();
 api.use("*", honoSessionMiddleware(oidc));
+/**
+ * SPA 向けのユーザー情報エンドポイント。AuthContainer の `/userinfo` を BFF 経由で叩き、
+ * 表示に必要な claim だけを返す。`/userinfo` が 401 を返した場合は access_token が revoke
+ * されたとみなしてサーバ側セッション Cookie を破棄してから 401 を返す (再ログインを促す)。
+ * sub mismatch も同様にセッションを破棄する (別ユーザーへすり替わる事故を防ぐ)。
+ */
 api.get("/me", async (c) => {
-  const { accessToken } = c.var.user;
-  const result = await oidc.fetchUserInfo(accessToken);
+  const { sub, accessToken } = c.var.user;
+  const result = await oidc.fetchUserInfo(accessToken, sub);
 
   if (result.ok) {
     return c.json({
@@ -80,10 +86,14 @@ api.get("/me", async (c) => {
     });
   }
 
-  // /userinfo 401 = access_token revoked → セッション失効として扱う
   if (result.reason === "unauthorized") {
     applySetCookies(c, oidc.clearSession());
     return c.json({ error: "unauthenticated" }, 401);
+  }
+
+  if (result.reason === "sub_mismatch") {
+    applySetCookies(c, oidc.clearSession());
+    return c.json({ error: "sub_mismatch" }, 401);
   }
 
   return c.json({ error: "Failed to fetch user info" }, 502);

@@ -103,7 +103,6 @@ export async function handleCallback(
       accessTokenExpiresAt: sessionData.accessTokenExpiresAt,
       createdAt: sessionData.createdAt,
     },
-    returnTo: pending.r,
     setCookies: [sessionCookie, clearPending],
   };
 }

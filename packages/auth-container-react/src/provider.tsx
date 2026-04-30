@@ -1,5 +1,6 @@
 import { createContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import { SILENT_ATTEMPTED_KEY } from "./constants";
+import { safeEqual } from "./crypto/safe-equal";
 import { buildLogoutUrl } from "./flows/logout";
 import { verifyIdToken } from "./flows/id-token";
 import { performLoginRedirect, performSilentRedirect } from "./flows/silent-redirect";
@@ -23,6 +24,10 @@ export const AuthContext = createContext<AuthContextValue | null>(null);
  *
  * Token は memory のみ保管。ページリロードで消失するが silent renew で復元可能 (3rd-party cookie 制限なし)。
  *
+ * 失効監視: `accessTokenExpiresAt` を超過した瞬間に自動で `session_expired` を dispatch して
+ * memory state を initialAuthState に倒す (失効 token を握り続けない)。proactive な silent renew は
+ * top-level redirect の UX 破壊を避けるため敢えてしない (利用側が再ログイン or リロードで復旧)。
+ *
  * 起動 useEffect は意図的に依存配列を空 ([]) で固定する: resolved は useMemo で安定参照だが、
  * runStartup は top-level redirect (window.location.assign) を伴う副作用なので 1 度だけ走る必要がある。
  * react-hooks/exhaustive-deps を disable しているのはそのため。
@@ -41,6 +46,17 @@ export function AuthProvider({ children, config }: { children: ReactNode; config
     void runStartup(resolved, dispatch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (state.accessTokenExpiresAt === null) return;
+    const ms = state.accessTokenExpiresAt * 1000 - Date.now();
+    if (ms <= 0) {
+      dispatch({ type: "session_expired" });
+      return;
+    }
+    const timer = setTimeout(() => dispatch({ type: "session_expired" }), ms);
+    return () => clearTimeout(timer);
+  }, [state.accessTokenExpiresAt]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -64,15 +80,19 @@ export function AuthProvider({ children, config }: { children: ReactNode; config
 
 /**
  * AuthConfig を内部用 ResolvedAuthConfig に解決する。
- * 省略可能なフィールドにデフォルトを充填し、fetch / postLogoutRedirectUri を確定値にする。
+ * 省略可能なフィールドにデフォルトを充填し、postLogoutRedirectUri を確定値にする。
+ * 確定後の redirectUri / postLogoutRedirectUri は HTTPS 必須で検証する (`assertSecureRedirectUri`)。
  */
 function resolveConfig(config: AuthConfig): ResolvedAuthConfig {
+  const postLogoutRedirectUri = config.postLogoutRedirectUri ?? window.location.origin;
+  assertSecureRedirectUri(config.redirectUri, "redirectUri");
+  assertSecureRedirectUri(postLogoutRedirectUri, "postLogoutRedirectUri");
   return {
     clientId: config.clientId,
     redirectUri: config.redirectUri,
-    postLogoutRedirectUri: config.postLogoutRedirectUri ?? window.location.origin,
+    postLogoutRedirectUri,
     silentRenewOnMount: config.silentRenewOnMount ?? true,
-    fetch: config.fetch ?? globalThis.fetch.bind(globalThis),
+    fetch: globalThis.fetch.bind(globalThis),
   };
 }
 
@@ -133,7 +153,7 @@ async function processCallback(
   const pending = loadPending();
   clearPending();
 
-  if (!stateParam || !pending || pending.state !== stateParam) {
+  if (!stateParam || !pending || !safeEqual(pending.state, stateParam)) {
     dispatch({ type: "error", error: { kind: "state_mismatch" } });
     cleanupCallbackUrl(pending);
     return;
@@ -174,7 +194,8 @@ async function processCallback(
     return;
   }
 
-  if (payload["nonce"] !== pending.nonce) {
+  const nonceClaim = typeof payload["nonce"] === "string" ? payload["nonce"] : "";
+  if (!safeEqual(nonceClaim, pending.nonce)) {
     dispatch({ type: "error", error: { kind: "nonce_mismatch" } });
     cleanupCallbackUrl(pending);
     return;
@@ -217,4 +238,24 @@ function cleanupCallbackUrl(pending: { returnTo: string } | null): void {
   const returnTo = pending?.returnTo ?? "/";
   window.history.replaceState({}, "", returnTo);
   window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+/**
+ * redirect 系 URI が HTTPS であることを起動時に強制する (OAuth 2.0 BCP §7.5.1, RFC 8252 §7.3)。
+ * 例外として `http://localhost` / `http://127.0.0.1` のみ dev 用途で許容する。
+ * bundler に依存せず実行時の URL 文字列だけで判定するため、Vite/Webpack 等の env 注入を要求しない。
+ * 検証失敗時は設定者がすぐ気付けるよう違反値を含めて throw する。
+ */
+function assertSecureRedirectUri(uri: string, fieldName: string): void {
+  let url: URL;
+  try {
+    url = new URL(uri);
+  } catch {
+    throw new Error(`${fieldName} is not a valid URL: ${uri}`);
+  }
+  if (url.protocol === "https:") return;
+  if (url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "127.0.0.1")) {
+    return;
+  }
+  throw new Error(`${fieldName} must be https:// (or http://localhost for dev): ${uri}`);
 }

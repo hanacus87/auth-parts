@@ -8,15 +8,23 @@ import type { ResolvedConfig, UserInfoResult } from "../types";
  * 401 (= access_token revoked / invalid) と 5xx 等の一時障害を区別するため、throw せず
  * 型付き Result (`UserInfoResult`) を返す。利用側は reason='unauthorized' を
  * セッション失効シグナルとして扱える。
+ *
+ * OIDC Core §5.3.2: UserInfo response の sub は id_token と完全一致が必須 (token mix-up 対策)。
+ * 不一致は revoked 同様セッション失効シグナルとして扱えるよう、専用 reason='sub_mismatch' に分岐させる。
  */
 export async function fetchUserInfo(
   config: ResolvedConfig,
   accessToken: string,
+  expectedSub: string,
 ): Promise<UserInfoResult> {
   const res = await config.fetch(ENDPOINTS.userinfo, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (res.status === 401) return { ok: false, reason: "unauthorized" };
   if (!res.ok) return { ok: false, reason: "error", status: res.status };
-  return { ok: true, claims: (await res.json()) as Record<string, unknown> };
+  const claims = (await res.json()) as Record<string, unknown>;
+  if (typeof claims.sub !== "string" || claims.sub !== expectedSub) {
+    return { ok: false, reason: "sub_mismatch" };
+  }
+  return { ok: true, claims };
 }

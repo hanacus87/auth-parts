@@ -12,24 +12,18 @@ export function Dashboard() {
   }, [isAuthenticated, isLoading, navigate]);
 
   useEffect(() => {
-    if (!accessToken) return;
+    if (!accessToken || !user) return;
     let cancelled = false;
-    void fetchUserInfo(accessToken).then((res) => {
+    void fetchUserInfo(accessToken, user.sub).then((res) => {
       if (!cancelled) setUserInfo(res);
     });
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [accessToken, user]);
 
   if (isLoading || !user) {
-    return (
-      <div
-        style={{ fontFamily: "sans-serif", maxWidth: 500, margin: "80px auto", padding: "0 16px" }}
-      >
-        <p>Loading...</p>
-      </div>
-    );
+    return <div>Loading...</div>;
   }
 
   return (
@@ -78,6 +72,7 @@ function renderUserInfo(result: UserInfoResult | null): string {
   if (!result) return "Loading...";
   if (result.ok) return JSON.stringify(result.claims, null, 2);
   if (result.reason === "unauthorized") return "401 Unauthorized (token revoked or expired)";
+  if (result.reason === "sub_mismatch") return "sub mismatch (OIDC Core §5.3.2)";
   return `Error (HTTP ${result.status})`;
 }
 

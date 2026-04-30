@@ -3,7 +3,6 @@ export interface AuthConfig {
   redirectUri: string;
   postLogoutRedirectUri?: string;
   silentRenewOnMount?: boolean;
-  fetch?: typeof globalThis.fetch;
 }
 
 export interface ResolvedAuthConfig {

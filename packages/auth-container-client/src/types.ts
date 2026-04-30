@@ -7,8 +7,6 @@ export interface ClientUserConfig {
   cookies?: {
     sessionName?: string;
   };
-  fetch?: typeof globalThis.fetch;
-  clock?: () => number;
 }
 
 export interface ResolvedConfig {
@@ -53,7 +51,6 @@ export type CallbackResult =
   | {
       ok: true;
       session: SessionView;
-      returnTo?: string;
       setCookies: SetCookieDirective[];
     }
   | {
@@ -75,4 +72,5 @@ export interface SessionData {
 export type UserInfoResult =
   | { ok: true; claims: Record<string, unknown> }
   | { ok: false; reason: "unauthorized" }
+  | { ok: false; reason: "sub_mismatch" }
   | { ok: false; reason: "error"; status: number };
